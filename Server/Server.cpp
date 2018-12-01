@@ -52,7 +52,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			_Connection->Open("DSN=MySql;Server=localhost;Database=mygamedb", "root", "root", adModeUnknown);
 
 			_bstr_t sql;
-			sql = "Insert into user values(90,\'luoling2\')";
+			sql = "Insert into user values(88,\'luoling\')";
 			_RecordSet.CreateInstance(__uuidof(Recordset));
 			_RecordSet->Open(sql, _Connection.GetInterfacePtr(), adOpenDynamic, adLockOptimistic, adCmdText);
 			while (!_RecordSet->adoEOF)
