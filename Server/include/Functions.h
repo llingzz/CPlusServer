@@ -4,6 +4,8 @@
 #include <time.h>
 #include <sys/timeb.h>
 
+#define TIME_ACCURACY	10		//时间精度
+
 #define DELTA_EPOCH_IN_MICROSECS	11644473600000000Ui64
 static VOID(WINAPI *fnGetSystemTimePreciseAsFileTime)(LPFILETIME) = NULL;
 struct timezone {
@@ -66,10 +68,11 @@ static void _gettimeofday_1(struct timeval* tv, struct timezone* tz)
 	}
 }
 
+//返回当前毫秒数（精度单位：10ms）
 static long _getCentiSecond()
 {
 	timeval tv;
-	_gettimeofday(&tv);
+	_gettimeofday(&tv/*, NULL*/);
 
-	return (tv.tv_sec * 1000 + tv.tv_usec / 1000);
+	return (tv.tv_sec * 1000 / TIME_ACCURACY + tv.tv_usec / (1000 * TIME_ACCURACY));
 }

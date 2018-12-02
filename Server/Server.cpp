@@ -5,6 +5,11 @@
 
 #import "dll/msado15.dll" no_namespace rename("EOF","adoEOF") rename("BOF","adoBOF")
 
+void TestTimer(void* pParam)
+{
+	std::cout << "Hello World!" << endl;
+}
+
 int _tmain(int argc, _TCHAR* argv[])
 {
 #if 0
@@ -27,10 +32,13 @@ int _tmain(int argc, _TCHAR* argv[])
 		ch = 'Q';
 
 	} while ('Q' != ch);
-#elif 0	//²âÊÔÄÚ´æ³Ø
-	CBuffer myDataPool;
-	myDataPool.Write((PBYTE)"test", 5);
-	cout<<myDataPool.GetBuffer()<<endl;
+#elif 1	//²âÊÔÄÚ´æ³Ø
+	//CBuffer myDataPool;
+	//myDataPool.Write((PBYTE)"test", 5);
+	CBufferEx myDataPool;
+	myDataPool.Write((PBYTE)"Test", sizeof("Test"));
+	myDataPool.Write((PBYTE)"Test", sizeof("Test"));
+	std::cout<<myDataPool.c_Bytes() + sizeof("Test")<<std::endl;
 #elif 0	//²âÊÔRedisÁ¬½Ó
 	CRedisManager Manager("127.0.0.1",6379,0);
 	Manager.ConnectServer("127.0.0.1", 6379, "8767626", 0);
@@ -66,10 +74,11 @@ int _tmain(int argc, _TCHAR* argv[])
 	}
 	catch (_com_error e)
 	{
-
+		throw(e);
 	}
-
-	getchar();
+#elif 0	//²âÊÔ¶¨Ê±Æ÷
+	TimeWheel timer;
+	timer.SetTimer(10000, TestTimer, NULL, NULL);
 #else
 	cout << "Nothing Is Done!" << endl;
 #endif

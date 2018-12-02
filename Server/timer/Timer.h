@@ -51,7 +51,7 @@ public:
 	void InsertTimeWheelNode(TimeWheelNode* pNode);
 
 private:
-	static unsigned __stdcall _runTimer(void* pParam);
+	static unsigned int __stdcall _runTimer(void* pParam);
 
 private:
 	bool m_bStop;
