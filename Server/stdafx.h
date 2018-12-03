@@ -14,6 +14,8 @@
 #include <iostream>
 #include <vector>
 #include <list>
+#include <string>
+#include <queue>
 using namespace std;
 
 
@@ -22,10 +24,12 @@ using namespace std;
 #include "common/CommonReq.h"
 #include "include/Utilities.h"
 #include "include/Functions.h"
+#include "threadpool/ThreadPool.h"
 #include "iocp/IocpModule.h"
 #include "iocp/IocpSocket.h"
 #include "iocp/IocpAccept.h"
 #include "timer/Timer.h"
+#include "db/DBCommon.h"
 #include "db/DBOperator.h"
 #include "db/mysql/MySQLManager.h"
 #include "redis/RedisManager.h"

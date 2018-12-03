@@ -87,6 +87,12 @@
     <ClInclude Include="redis\redis\win32fixes.h">
       <Filter>redis</Filter>
     </ClInclude>
+    <ClInclude Include="db\DBCommon.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="threadpool\ThreadPool.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -139,6 +145,9 @@
     </ClCompile>
     <ClCompile Include="redis\redis\win32fixes.c">
       <Filter>redis</Filter>
+    </ClCompile>
+    <ClCompile Include="threadpool\ThreadPool.cpp">
+      <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

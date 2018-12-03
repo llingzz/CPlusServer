@@ -14,7 +14,7 @@ private:
 	CSingle(const CSingle& singleton);
 
 public:
-	static T* getInstance()
+	static T* GetInstance()
 	{
 		if (m_pInstance)
 		{
