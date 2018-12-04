@@ -11,11 +11,13 @@
 
 #include <stdio.h>
 #include <tchar.h>
+#include <string.h>
 #include <iostream>
 #include <vector>
 #include <list>
 #include <string>
 #include <queue>
+#include <map>
 using namespace std;
 
 

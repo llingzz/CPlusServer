@@ -5,7 +5,11 @@
 
 void TestTimer(void* pParam)
 {
-	std::cout << "Hello World!" << endl;
+	std::cout << "Hello World!" << std::endl;
+}
+void CancelTest(void* pParam)
+{
+	std::cout << "Canceled!" << std::endl;
 }
 
 class testTask : public CTask
@@ -39,9 +43,9 @@ void testTask::Run()
 
 int _tmain(int argc, _TCHAR* argv[])
 {
-#if 0
+#if 1
 	CBaseServer GameServer = CBaseServer();
-
+	GameServer._getIniFile();
 	if (FALSE == GameServer.Initialize())
 	{
 		//LOG_ERROR("Iniatialize Failed...");
@@ -49,14 +53,14 @@ int _tmain(int argc, _TCHAR* argv[])
 	char ch;
 	do
 	{
-		ch = 'S';
+		ch = 'A';
 		ch = toupper(ch);
 
 		if ('S' == ch)
 		{
 			GameServer.TestSend();
 		}
-		ch = 'Q';
+		//ch = 'Q';
 
 	} while ('Q' != ch);
 #elif 0	//测试内存池
@@ -97,7 +101,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	}
 	//提交事务操作
 	MYSQL_CommitTrans(connection);
-#elif 1	//测试线程池
+#elif 0	//测试线程池
 	CThreadPool* pThreadPool = new CThreadPool(20, 10, 5);
 	pThreadPool->Start();
 
@@ -110,7 +114,9 @@ int _tmain(int argc, _TCHAR* argv[])
 	pThreadPool->Stop();
 #elif 0	//测试定时器
 	TimeWheel timer;
-	timer.SetTimer(10000, TestTimer, NULL, NULL);
+	timer.SetTimer(10000, TestTimer, NULL, CancelTest);
+	//TimeWheelNode* pNode = timer.SetTimer(10000, TestTimer, NULL, CancelTest);
+	//timer.CancelTimer(pNode->nTimerID);
 #else
 	cout << "Nothing Is Done!" << endl;
 #endif

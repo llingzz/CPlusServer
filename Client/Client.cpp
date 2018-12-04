@@ -241,8 +241,8 @@ DWORD __stdcall CClient::SendThread(LPVOID lpParam)
 	stuSendData.stuRequestHead.nRequest = MAC_TEST_SEND;
 	strcpy(stuSendData.dataBuff, "Hello Server!");
 
-	std::cout << (char*)&stuSendData << std::endl;
-	std::cout << sizeof(stuSendData) << std::endl;
+	//std::cout << (char*)&stuSendData << std::endl;
+	//std::cout << sizeof(stuSendData) << std::endl;
 
 	nBytesSend2 = ::send(pParam->sSocket, (char*)&stuSendData, sizeof(stuSendData), 0);
 	if (SOCKET_ERROR == nBytesSend2)
@@ -305,7 +305,6 @@ int _tmain(int argc, _TCHAR* argv[])
 	pClient->Run();
 
 	getchar();
-
 	return 0;
 }
 

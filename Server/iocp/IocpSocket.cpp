@@ -35,6 +35,10 @@ void CIOCPSocket::DoRecv(LPIO_CONTEXT pIoContext, CBaseServer* pServer)
 {
 	//LOG_INFO("Get Data In DoRecv: " << pIoContext->m_WsaBuf.buf);
 
+	//处理来自客户端的所有消息请求
+	//TODO:如果得到的是客户端心跳消息,根据CBaseServer的当前计数将对应的客户端放入对应的心跳检测轮中进行心跳检测,以保持客户端的长连接
+
+
 	PostRecv(pIoContext, pServer);
 }
 

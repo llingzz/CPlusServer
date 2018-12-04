@@ -120,6 +120,9 @@ BOOL CIOCPAccept::DoAccept(LPSOCKET_CONTEXT pSocketContext, LPIO_CONTEXT pIoCont
 	CAutoLock lock(&pServer->m_csVectClientContext);
 	pServer->m_vectClientConetxt.push_back(pNewSocketContext);
 
+	//将连接上的客户端放入map中集中管理
+	//pServer->m_mapClientHeartBeat.insert(std::pair<int, SOCKET>(std::stoi(pIoContext->m_WsaBuf.buf), pIoContext->m_Socket));
+
 	//重置ListenSocket上面的IoContext，用于准备投递新的AccepEx
 	ZeroMemory(pIoContext->m_szBuffer, DATA_BUF_SIZE);
 

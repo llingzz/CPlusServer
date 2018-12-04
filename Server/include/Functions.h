@@ -4,7 +4,7 @@
 #include <time.h>
 #include <sys/timeb.h>
 
-#define TIME_ACCURACY	10		//时间精度
+#define TIME_ACCURACY	20		//时间精度
 
 #define DELTA_EPOCH_IN_MICROSECS	11644473600000000Ui64
 static VOID(WINAPI *fnGetSystemTimePreciseAsFileTime)(LPFILETIME) = NULL;
@@ -68,11 +68,57 @@ static void _gettimeofday_1(struct timeval* tv, struct timezone* tz)
 	}
 }
 
-//返回当前毫秒数（精度单位：10ms）
+//返回当前毫秒数（精度单位：20ms）
 static long _getCentiSecond()
 {
 	timeval tv;
 	_gettimeofday(&tv/*, NULL*/);
 
 	return (tv.tv_sec * 1000 / TIME_ACCURACY + tv.tv_usec / (1000 * TIME_ACCURACY));
+}
+//返回当前秒数（精度单位：20ms）
+static long _getSencond()
+{
+	timeval tv;
+	_gettimeofday(&tv);
+
+	return (tv.tv_sec * 1000 * 1000 / TIME_ACCURACY + tv.tv_usec / (1000 * 1000 * TIME_ACCURACY));
+}
+
+//Character conversions 字符转换
+static void StringToTchar(std::string str, TCHAR* szTchar)
+{
+#ifdef UNICODE
+	_stprintf_s(szTchar, MAX_PATH, _T("%S"), str.c_str());
+#else
+	_stprintf_s(szTchar, MAX_PATH, _T("%s"), str.c_str());
+#endif // UNICODE
+}
+static void TcharToString(TCHAR* szTchar, std::string& str)
+{
+	int nLen = WideCharToMultiByte(CP_ACP, 0, szTchar, -1, NULL, 0, NULL, NULL);
+	char* pTemp = new char[nLen*sizeof(char)];
+	WideCharToMultiByte(CP_ACP, 0, szTchar, -1, pTemp, nLen, NULL, NULL);
+	std::string strTemp(pTemp);
+	str = strTemp;
+	delete[] pTemp;
+}
+static void StringToChar(std::string str, char* szChar)
+{
+	strcpy_s(szChar, str.length() + 1, str.c_str());
+}
+static void CharToString(char* szChar, std::string& str)
+{
+	std::string strTemp(szChar);
+	str = strTemp;
+}
+static void TcharToChar(const TCHAR* tar, char* car)
+{
+	int nLen = WideCharToMultiByte(CP_ACP, 0, tar, -1, NULL, 0, NULL, NULL);
+	WideCharToMultiByte(CP_ACP, 0, tar, -1, car, nLen, NULL, NULL);
+}
+static void CharToTchar(const char* car, TCHAR* tar, const int nCharSize)
+{
+	int nLen = MultiByteToWideChar(CP_ACP, 0, car, nCharSize + 1, NULL, 0);
+	MultiByteToWideChar(CP_ACP, 0, car, nCharSize + 1, tar, nLen/**sizeof(TCHAR)*/);
 }

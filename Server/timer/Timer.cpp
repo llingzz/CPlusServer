@@ -37,9 +37,9 @@ void TimeWheel::UpdateTimer()
 	}
 }
 
-void TimeWheel::SetTimer(unsigned int uiMilliSeconds, TimeOutCallback TOC, void* pParam, CancelCallback CC)
+TimeWheelNode* TimeWheel::SetTimer(unsigned int uiMilliSeconds, TimeOutCallback TOC, void* pParam, CancelCallback CC)
 {
-	//加锁
+	CAutoLock lock(&m_csLock);
 	uiMilliSeconds /= TIME_INTERVAL;
 	TimeWheelNode* pNode = new TimeWheelNode;
 	memset(pNode, 0, sizeof(TimeWheelNode));
@@ -51,45 +51,49 @@ void TimeWheel::SetTimer(unsigned int uiMilliSeconds, TimeOutCallback TOC, void*
 
 	m_TimeWheelMap[pNode->nTimerID] = pNode;
 	InsertTimeWheelNode(pNode);
-	//解锁
+
+	return pNode;
 }
 
 void TimeWheel::CancelTimer(unsigned int uiTimerID)
 {
-	//加锁
 	TimeWheelNode* pNode = m_TimeWheelMap[uiTimerID];
 	if (NULL == pNode)
 	{
-		//解锁
+		CAutoLock lock(&m_csLock);
 		return;
 	}
 	if (NULL != pNode->pCCB)
 	{
 		pNode->pCCB(pNode->pParam);
 	}
+	CAutoLock lock(&m_csLock);
 	m_TimeWheelMap.erase(uiTimerID);
+	m_TimeWheelList[pNode->uiLevelID][pNode->uiSlotID].pop_back();
 	delete pNode;
-	//解锁
 }
 
 void TimeWheel::ExcuteTimerList()
 {
-	//加锁
 	//首先判断当前时间处于最里面执行圈的哪个槽口
 	int nCurrentSlot = (m_uiTick & MASK_INNERMOST);
 	//取出对应槽口的定时任务列表，取出后清空
 	std::list<TimeWheelNode*> nodeList = m_ExcuteList[nCurrentSlot];
-	m_ExcuteList[nCurrentSlot].clear();
-	//解锁
+	{
+		CAutoLock lock(&m_csLock);
+		//nodeList = m_ExcuteList[nCurrentSlot];
+		m_ExcuteList[nCurrentSlot].clear();
+	}
 	//执行当前时间待处理任务列表中待处理的定时任务
 	for (auto iter = nodeList.begin(); iter != nodeList.end(); iter++)
 	{
 		TimeWheelNode* pNode = *iter;
 		pNode->pTOCB(pNode->pParam);
-		//加锁
-		//删除存储在map中的定时器任务结点
-		m_TimeWheelMap.erase(pNode->nTimerID);
-		//解锁
+		{
+			CAutoLock lock(&m_csLock);
+			//删除存储在map中的定时器任务结点
+			m_TimeWheelMap.erase(pNode->nTimerID);
+		}
 		delete pNode;
 	}
 }
@@ -124,7 +128,7 @@ void TimeWheel::MoveTimeWheelList()
 
 void TimeWheel::MoveTimeWheelListEx(std::list<TimeWheelNode*>& nodeList)
 {
-	//加锁
+	CAutoLock lock(&m_csLock);
 	//遍历该槽上的所有定时任务，重新插入到时间轮中
 	for (auto iter = nodeList.begin(); iter != nodeList.end();)
 	{
@@ -132,7 +136,6 @@ void TimeWheel::MoveTimeWheelListEx(std::list<TimeWheelNode*>& nodeList)
 		InsertTimeWheelNode(pNode);
 		iter = nodeList.erase(iter++);
 	}
-	//解锁
 }
 
 void TimeWheel::InsertTimeWheelNode(TimeWheelNode* pNode)

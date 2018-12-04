@@ -13,6 +13,8 @@
 #define				BASE_DATA_BUF_SIZE						1 * 1024	//基本数据缓存区大小
 #define				DATA_BUF_SIZE							2 * 1024	//数据缓冲区大小
 #define				ACCEPTEX_BYTES_OFFSET_SIZE				16			//AcceptEx字节偏移量
+#define				HEART_BEAT_WHEEL_SLOT					60			//心跳检测时间轮槽数
+#define				TIME_TICK								1000		//1000ms
 
 //完成端口上投递IO操作类型
 typedef enum tagOPE_TYPE{
@@ -44,3 +46,9 @@ typedef struct _tagSOCKET_CONTEXT{
 	sockaddr_in     m_SockAddrIn;						//该Socket地址信息
 	std::vector<LPIO_CONTEXT> m_vectIoContext;			//该Socket所有的IO上下文操作
 }SOCKET_CONTEXT, *LPSOCKET_CONTEXT;
+
+//心跳包
+typedef struct _tagHEART_BEAT_DETECT{
+	SOCKET			m_Socket;							//Socket
+	unsigned int	m_uiDisconnectCount;				//心跳包缺收次数
+}HEART_BEAT_DETECT, *LPHEART_BEAT_DETECT;

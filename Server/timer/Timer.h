@@ -7,7 +7,7 @@
 #include<time.h>
 
 #define TIME_WHEEL_LEVEL_SLOT		4						//时间轮的四个层级
-#define TIME_INTERVAL				10						//精度为10ms
+#define TIME_INTERVAL				20						//精度为20ms
 #define BIT_INNER					8
 #define BIT_LEVEL					6
 
@@ -41,7 +41,7 @@ public:
 	void StartTimer();
 	void UpdateTimer();
 
-	void SetTimer(unsigned int uiMilliSeconds, TimeOutCallback TOC, void* pParam, CancelCallback CC);
+	TimeWheelNode* SetTimer(unsigned int uiMilliSeconds, TimeOutCallback TOC, void* pParam, CancelCallback CC);
 	void CancelTimer(unsigned int uiTimerID);
 
 	void ExcuteTimerList();
@@ -58,6 +58,7 @@ private:
 	unsigned int m_uiTimeWheelNodeID;
 	unsigned int m_uiTick;
 	long m_lCurrentTime;
+	CritSec m_csLock;
 
 	std::list<TimeWheelNode*> m_TimeWheelList[TIME_WHEEL_LEVEL_SLOT][SLOT_OUTLEVELS];
 	std::list<TimeWheelNode*> m_ExcuteList[SLOT_INNERMOST];

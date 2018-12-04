@@ -4,6 +4,7 @@ CBaseServer::CBaseServer()
 :m_csVectClientContext()
 {
 	m_szIp = "127.0.0.1";
+	//GetPrivateProfileString(_T("Server"), _T("ip"), _T("127.0.0.1"), m_szIp, sizeof(m_szIp), _getIniFile());
 	m_nPort = 8888;
 	m_IocpModule = new CIOCPModule(this);
 	m_IocpAccept = new CIOCPAccept();
@@ -16,6 +17,9 @@ CBaseServer::CBaseServer()
 	m_pFnGetAcceptExSockAddr = NULL;
 
 	OnWorkerStart(m_IocpModule);
+
+	m_nTick = 0;
+	HANDLE handle = (HANDLE)_beginthreadex(NULL, 0, _heartbeatFunc, this, 0, NULL);
 }
 
 CBaseServer::~CBaseServer()
@@ -235,11 +239,89 @@ void CBaseServer::TestSend()
 		strcpy(pIoContext->m_szBuffer, "TestSend");
 		pIoContext->m_WsaBuf.buf = pIoContext->m_szBuffer;
 #if 1
-		//传递结构体可以使用PBYTE进行赋值与取值
+		
 #else
-		//
+		
 #endif
 
 		m_IocpSocket->DoSend(m_vectClientConetxt.at(i), pIoContext, this);
 	}
+}
+
+unsigned int CBaseServer::_heartbeatFunc(LPVOID pParam)
+{
+	CBaseServer* pServer = (CBaseServer*)pParam;
+
+	while (!pServer->m_hShutdownEvent)
+	{
+		//pServer->m_nTick = _getSencond();
+		unsigned int uiSlot = pServer->m_nTick % HEART_BEAT_WHEEL_SLOT;
+		std::vector<SOCKET> list = pServer->m_listHeartBeatWheel[uiSlot];
+		pServer->m_listHeartBeatWheel[uiSlot].clear();
+		for (auto iter = list.begin(); iter != list.end(); iter++)
+		{
+			HEART_BEAT_DETECT stuHeartBeatDetect = pServer->m_mapClientHeartBeat.at(*iter);
+			auto clientSocket = pServer->m_mapClientSocket.find(*iter);
+			auto nUserID = clientSocket->first;
+			pServer->_detectHeartBeat(nUserID, uiSlot, stuHeartBeatDetect);
+		}
+		Sleep(TIME_TICK - 1);
+		pServer->m_nTick++;
+	}
+
+	return 0;
+}
+
+void CBaseServer::_detectHeartBeat(unsigned int nUserID, unsigned int& nIndex, HEART_BEAT_DETECT& stuHeartBeatDetect)
+{
+	SOCKET socket = stuHeartBeatDetect.m_Socket;
+	unsigned int uiCount = stuHeartBeatDetect.m_uiDisconnectCount;
+	//心跳缺失检测三次以上直接断开该Socket的连接
+	if (uiCount >= 3)
+	{
+		::closesocket(socket);
+
+		{
+			CAutoLock lock(&this->m_csMapClientHeartBeat);
+			this->m_mapClientHeartBeat.erase(socket); 
+		}
+		{
+			CAutoLock lock(&m_csMapClientHeartBeat);
+			this->m_mapClientHeartBeat.erase(nUserID);
+		}
+		
+	}
+	//心跳检测正常的重新放入循环
+	else
+	{
+		if (0 == nIndex)
+		{
+			CAutoLock lock(&this->m_csHeartBeatWheel);
+			this->m_listHeartBeatWheel[HEART_BEAT_WHEEL_SLOT - 1].push_back(socket);
+		}
+		else
+		{
+			CAutoLock lock(&this->m_csHeartBeatWheel);
+			this->m_listHeartBeatWheel[nIndex - 1].push_back(socket);
+		}
+	}
+}
+
+TCHAR* CBaseServer::_getIniFile()
+{
+	TCHAR szIniFile[MAX_PATH] = { 0 };
+	TCHAR szFullName[MAX_PATH] = { 0 };
+	GetModuleFileName(GetModuleHandle(NULL), szFullName, sizeof(szFullName));
+	const char szTemp[MAX_PATH] = { 0 };
+	WideCharToMultiByte(CP_UTF8, 0, szFullName, MAX_PATH, (LPSTR)szTemp, MAX_PATH, 0, 0);
+	const char* ptr = strrchr(szTemp, '\\');
+
+	string strStr = szTemp;
+	auto nIndex = strStr.find(ptr);
+	string strRes = strStr.substr(0, nIndex);
+	strRes.append("\\CPlusServer.ini");
+
+	StringToTchar(strRes, szIniFile);
+
+	return szIniFile;
 }
