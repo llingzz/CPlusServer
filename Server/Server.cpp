@@ -45,7 +45,7 @@ int _tmain(int argc, _TCHAR* argv[])
 {
 #if 1
 	CBaseServer GameServer = CBaseServer();
-	GameServer._getIniFile();
+	//GetPrivateProfileString(_T("Server"), _T("ip"), _T(""), GameServer.m_szIp, _countof(GameServer.m_szIp), GameServer._getIniFile());
 	if (FALSE == GameServer.Initialize())
 	{
 		//LOG_ERROR("Iniatialize Failed...");
@@ -63,13 +63,35 @@ int _tmain(int argc, _TCHAR* argv[])
 		//ch = 'Q';
 
 	} while ('Q' != ch);
+#elif 0	//测试日志输出
+	
 #elif 0	//测试内存池
-	//CBuffer myDataPool;
-	//myDataPool.Write((PBYTE)"test", 5);
+	char test[] = "test";
+	MESSAGE_HEAD stuMessageHead = { 0 };
+	stuMessageHead.hSocket = 100;
+	stuMessageHead.lSession = 100;
+	stuMessageHead.lTokenID = 100;
+	MESSAGE_CONTENT stuMessageContent = { 0 };
+	stuMessageContent.nRequest = 10000;
+	stuMessageContent.nDataLen = sizeof(test);
+	stuMessageContent.pDataPtr = test;
+	/*CBuffer myDataPool;
+	myDataPool.Write((PBYTE)&stuMessageHead, sizeof(MESSAGE_HEAD));
+	myDataPool.Write((PBYTE)&stuMessageContent, sizeof(MESSAGE_CONTENT));
+	LPMESSAGE_HEAD lpHead = LPMESSAGE_HEAD(PBYTE(myDataPool.GetBuffer()));
+	LPMESSAGE_CONTENT lpContent = LPMESSAGE_CONTENT(PBYTE(myDataPool.GetBuffer()+sizeof(MESSAGE_HEAD)));*/
+	
+	/*CBufferEx myDataPool;
+	myDataPool.Write((PBYTE)"Test", sizeof("Test"));
+	myDataPool.Write((PBYTE)"Test", sizeof("Test"));
+	std::cout<<myDataPool.c_Bytes() + sizeof("Test")<<std::endl;*/
 	CBufferEx myDataPool;
-	myDataPool.Write((PBYTE)"Test", sizeof("Test"));
-	myDataPool.Write((PBYTE)"Test", sizeof("Test"));
-	std::cout<<myDataPool.c_Bytes() + sizeof("Test")<<std::endl;
+	myDataPool.Write((PBYTE)&stuMessageHead, sizeof(MESSAGE_HEAD));
+	myDataPool.Write((PBYTE)&stuMessageContent, sizeof(MESSAGE_CONTENT));
+	LPMESSAGE_HEAD lpHead = LPMESSAGE_HEAD(PBYTE(myDataPool.c_Bytes()));
+	LPMESSAGE_CONTENT lpContent = LPMESSAGE_CONTENT(PBYTE(myDataPool.c_Bytes() + sizeof(MESSAGE_HEAD)));
+
+	getchar();
 #elif 0	//测试Redis连接
 	CRedisManager Manager("127.0.0.1",6379,0);
 	Manager.ConnectServer("127.0.0.1", 6379, "8767626", 0);

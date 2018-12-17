@@ -17,7 +17,7 @@ public:
 	BOOL Initialize();
 	void DeInitialize();
 
-	static DWORD __stdcall WorkerThreadFunc(LPVOID lpParam);
+	static unsigned int __stdcall WorkerThreadFunc(LPVOID lpParam);
 
 	void RemoveSocketContext(LPSOCKET_CONTEXT pSocketContext);
 

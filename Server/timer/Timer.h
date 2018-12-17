@@ -58,7 +58,7 @@ private:
 	unsigned int m_uiTimeWheelNodeID;
 	unsigned int m_uiTick;
 	long m_lCurrentTime;
-	CritSec m_csLock;
+	CCritSec m_csLock;
 
 	std::list<TimeWheelNode*> m_TimeWheelList[TIME_WHEEL_LEVEL_SLOT][SLOT_OUTLEVELS];
 	std::list<TimeWheelNode*> m_ExcuteList[SLOT_INNERMOST];

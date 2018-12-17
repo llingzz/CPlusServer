@@ -85,10 +85,10 @@ protected:
 	int				m_nDBIndexTo;
 	int				m_nCurrentDBIndex;
 
-	CritSec			m_csRedisCmd;
+	CCritSec		m_csRedisCmd;
 	redisContext*	m_pRedisContext;
 
-	CritSec			m_csRedisReply;
+	CCritSec		m_csRedisReply;
 	redisReply*		m_pRedisReply;
 };
 

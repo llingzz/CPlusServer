@@ -3,9 +3,8 @@
 CBaseServer::CBaseServer()
 :m_csVectClientContext()
 {
-	m_szIp = "127.0.0.1";
-	//GetPrivateProfileString(_T("Server"), _T("ip"), _T("127.0.0.1"), m_szIp, sizeof(m_szIp), _getIniFile());
-	m_nPort = 8888;
+	GetPrivateProfileString(_T("Server"), _T("ip"), _T(""), m_szIp, IP_LENGTH, GetIniFileName());
+	m_nPort = GetPrivateProfileInt(_T("Server"), _T("port"), 0, GetIniFileName());
 	m_IocpModule = new CIOCPModule(this);
 	m_IocpAccept = new CIOCPAccept();
 	m_IocpSocket = new CIOCPSocket();
@@ -19,7 +18,6 @@ CBaseServer::CBaseServer()
 	OnWorkerStart(m_IocpModule);
 
 	m_nTick = 0;
-	HANDLE handle = (HANDLE)_beginthreadex(NULL, 0, _heartbeatFunc, this, 0, NULL);
 }
 
 CBaseServer::~CBaseServer()
@@ -46,25 +44,25 @@ void CBaseServer::OnWorkerExit()
 	SAFE_RELEASE_HANDLE(m_IocpModule->m_hIocp);
 	SAFE_DELETE(m_pListenContext);
 
-	//LOG_INFO("The Class Members had All Released...");
+	printf("The Class Members had All Released...\n");
 }
 
 BOOL CBaseServer::Initialize()
 {
-	//CAutoLock lock(&m_csVectClientContext);
-	m_csVectClientContext.Lock();
-
+	unsigned int uiThreadID;
+	HANDLE handle = (HANDLE)_beginthreadex(NULL, 0, heartbeatFunc, this, 0, &uiThreadID);
+	CAutoLock lock(&m_csVectClientContext);
 	if (FALSE == LoadSocketLib())
 	{
-		//LOG_ERROR("CBaseServer::LoadSocketLib Initialize Failed...");
+		printf("CBaseServer::LoadSocketLib Initialize Failed...\n");
 	}
-	//LOG_INFO("CBaseServer::LoadSocketLib Initialize Successful...");
+	printf("CBaseServer::LoadSocketLib Initialize Successful...\n");
 
 	if (FALSE == m_IocpModule->Initialize())
 	{
-		//LOG_ERROR("CIOCPModule Initialize Failed...");
+		printf("CIOCPModule Initialize Failed...\n");
 	}
-	//LOG_INFO("CBaseServer::LoadSocketLib Initialize Successful...");
+	printf("CBaseServer::LoadSocketLib Initialize Successful...\n");
 
 	//AcceptEx和GetAcceptExSockAddr的GUID，用于导出函数指针
 	GUID GuidAcceptEx = WSAID_ACCEPTEX;
@@ -79,39 +77,41 @@ BOOL CBaseServer::Initialize()
 	m_pListenContext->m_Socket = ::WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
 	if (INVALID_SOCKET == m_pListenContext->m_Socket)
 	{
-		//LOG_ERROR("CBaseServer::Initialize Initialize the WSASocket Failed...");
+		printf("CBaseServer::Initialize Initialize the WSASocket Failed...\n");
 		return FALSE;
 	}
-	//LOG_INFO("CBaseServer::Initialize Initialize the WSASocket Successful...");
+	printf("CBaseServer::Initialize Initialize the WSASocket Successful...\n");
 
 	if (NULL == ::CreateIoCompletionPort((HANDLE)m_pListenContext->m_Socket, (HANDLE)m_IocpModule->m_hIocp, (DWORD)m_pListenContext, 0))
 	{
-		//LOG_ERROR("Bind the ClientContext to IoCompletionPort Failed...");
+		printf("Bind the ClientContext to IoCompletionPort Failed...\n");
 		SAFE_RELEASE_SOCKET(m_pListenContext->m_Socket);
 		return FALSE;
 	}
-	//LOG_INFO("Bind the ClientContext to IoCompletionPort Successful...");
+	printf("Bind the ClientContext to IoCompletionPort Successful...\n");
 
 	memset(&socketAddr, 0, sizeof(sockaddr_in));
 	socketAddr.sin_family = AF_INET;
-	socketAddr.sin_addr.S_un.S_addr = inet_addr(m_szIp);
+	char szTemp[IP_LENGTH] = { 0 };
+	TcharToChar(m_szIp, szTemp);
+	socketAddr.sin_addr.S_un.S_addr = inet_addr(szTemp);
 	socketAddr.sin_port = htons((u_short)m_nPort);
 
 	auto nRet = ::bind(m_pListenContext->m_Socket, (struct sockaddr*)&socketAddr, sizeof(socketAddr));
 	if (SOCKET_ERROR == nRet)
 	{
-		//LOG_ERROR("Bind SOCKET Failed...");
+		printf("Bind SOCKET Failed...\n");
 		return FALSE;
 	}
-	//LOG_INFO("Bind SOCKET Successful...");
+	printf("Bind SOCKET Successful...\n");
 
 	nRet = ::listen(m_pListenContext->m_Socket, SOMAXCONN);
 	if (SOCKET_ERROR == nRet)
 	{
-		//LOG_ERROR("Listen SOCKET Failed...");
+		printf("Listen SOCKET Failed...\n");
 		return FALSE;
 	}
-	//LOG_INFO("Listen SOCKET Successful...");
+	printf("Listen SOCKET Successful...\n");
 
 	DWORD dwBytes = 0;
 	//使用AcceptEx函数，获取函数指针
@@ -126,7 +126,7 @@ BOOL CBaseServer::Initialize()
 		NULL,
 		NULL))
 	{
-		//LOG_ERROR("WSAIoctl do not get the AcceptEx Pointer...");
+		printf("WSAIoctl do not get the AcceptEx Pointer...\n");
 		return FALSE;
 	}
 
@@ -142,7 +142,7 @@ BOOL CBaseServer::Initialize()
 		NULL,
 		NULL))
 	{
-		//LOG_ERROR("WSAIoctl do not get the GetAcceptExSockAddr Pointer...");
+		printf("WSAIoctl do not get the GetAcceptExSockAddr Pointer...\n");
 		return FALSE;
 	}
 
@@ -178,10 +178,8 @@ BOOL CBaseServer::Initialize()
 
 			return FALSE;
 		}
-		//LOG_INFO("Posted AcceptEx Request...");
+		printf("Posted AcceptEx Request...\n");
 	}
-
-	m_csVectClientContext.Unlock();
 
 	return TRUE;
 }
@@ -201,7 +199,7 @@ void CBaseServer::Shutdown()
 
 		this->OnWorkerExit();
 
-		//LOG_INFO("The Server has Shutdown...Stopped Listening...");
+		printf("The Server has Shutdown...Stopped Listening...\n");
 	}
 }
 
@@ -211,10 +209,10 @@ BOOL CBaseServer::LoadSocketLib()
 	auto nRet = ::WSAStartup(MAKEWORD(2, 2), &wsaData);
 	if (NO_ERROR != nRet)
 	{
-		//LOG_ERROR("Initialized the Socket Libs Failed...");
+		printf("Initialized the Socket Libs Failed...\n");
 		return FALSE;
 	}
-	//LOG_INFO("Initialized the Socket Libs Successful...");
+	printf("Initialized the Socket Libs Successful...\n");
 
 	return TRUE;
 }
@@ -248,48 +246,47 @@ void CBaseServer::TestSend()
 	}
 }
 
-unsigned int CBaseServer::_heartbeatFunc(LPVOID pParam)
+unsigned int CBaseServer::heartbeatFunc(LPVOID pParam)
 {
 	CBaseServer* pServer = (CBaseServer*)pParam;
 
-	while (!pServer->m_hShutdownEvent)
+	while (1)
 	{
-		//pServer->m_nTick = _getSencond();
+		if (0 == (pServer->m_nTick % 10))
+		{
+			printf("Ticks:%d Detect Pluse...Current Connections:%d\n", pServer->m_nTick, pServer->getConnections());
+		}
 		unsigned int uiSlot = pServer->m_nTick % HEART_BEAT_WHEEL_SLOT;
-		std::vector<SOCKET> list = pServer->m_listHeartBeatWheel[uiSlot];
-		pServer->m_listHeartBeatWheel[uiSlot].clear();
+		CAutoLock lock(&pServer->m_csHeartBeatWheel);
+		std::vector<SOCKET> list = pServer->m_vectHeartBeatWheel[uiSlot];
+		pServer->m_vectHeartBeatWheel[uiSlot].clear();
 		for (auto iter = list.begin(); iter != list.end(); iter++)
 		{
-			HEART_BEAT_DETECT stuHeartBeatDetect = pServer->m_mapClientHeartBeat.at(*iter);
-			auto clientSocket = pServer->m_mapClientSocket.find(*iter);
-			auto nUserID = clientSocket->first;
-			pServer->_detectHeartBeat(nUserID, uiSlot, stuHeartBeatDetect);
+			CAutoLock lock(&pServer->m_csMapClientHeartBeat);
+			std::map<SOCKET, HEART_BEAT_DETECT>::iterator iterTemp = pServer->m_mapClientHeartBeat.find(*iter);
+			if (iterTemp != pServer->m_mapClientHeartBeat.end())
+			{
+				pServer->detectHeartBeat(uiSlot, pServer->m_mapClientHeartBeat.at(*iter));
+			}
 		}
-		Sleep(TIME_TICK - 1);
+		Sleep(TIME_TICK);
 		pServer->m_nTick++;
 	}
 
 	return 0;
 }
 
-void CBaseServer::_detectHeartBeat(unsigned int nUserID, unsigned int& nIndex, HEART_BEAT_DETECT& stuHeartBeatDetect)
+void CBaseServer::detectHeartBeat(unsigned int& nIndex, HEART_BEAT_DETECT& stuHeartBeatDetect)
 {
 	SOCKET socket = stuHeartBeatDetect.m_Socket;
-	unsigned int uiCount = stuHeartBeatDetect.m_uiDisconnectCount;
-	//心跳缺失检测三次以上直接断开该Socket的连接
-	if (uiCount >= 3)
+	if ((m_nTick - stuHeartBeatDetect.m_uiLastTick) >= HEART_BEAT_WHEEL_SLOT)
 	{
-		::closesocket(socket);
-
-		{
-			CAutoLock lock(&this->m_csMapClientHeartBeat);
-			this->m_mapClientHeartBeat.erase(socket); 
-		}
-		{
-			CAutoLock lock(&m_csMapClientHeartBeat);
-			this->m_mapClientHeartBeat.erase(nUserID);
-		}
-		
+		stuHeartBeatDetect.m_uiDisconnectCount++;
+	}
+	//心跳缺失检测三次以上直接断开该Socket的连接
+	if (stuHeartBeatDetect.m_uiDisconnectCount > MAX_DISCONNECTION_TIMES)
+	{
+		ClientClosed(socket);
 	}
 	//心跳检测正常的重新放入循环
 	else
@@ -297,17 +294,103 @@ void CBaseServer::_detectHeartBeat(unsigned int nUserID, unsigned int& nIndex, H
 		if (0 == nIndex)
 		{
 			CAutoLock lock(&this->m_csHeartBeatWheel);
-			this->m_listHeartBeatWheel[HEART_BEAT_WHEEL_SLOT - 1].push_back(socket);
+			this->m_vectHeartBeatWheel[HEART_BEAT_WHEEL_SLOT - 1].push_back(socket);
 		}
 		else
 		{
 			CAutoLock lock(&this->m_csHeartBeatWheel);
-			this->m_listHeartBeatWheel[nIndex - 1].push_back(socket);
+			this->m_vectHeartBeatWheel[nIndex - 1].push_back(socket);
 		}
 	}
 }
 
-TCHAR* CBaseServer::_getIniFile()
+BOOL CBaseServer::SendRequest(SOCKET client)
+{
+	return TRUE;
+}
+BOOL CBaseServer::SendResponse(SOCKET client)
+{
+	return TRUE;
+}
+void CBaseServer::OnRequest(void* pParam1, void* pParam2)
+{
+	LPMESSAGE_HEAD lpMessageHead = (LPMESSAGE_HEAD)pParam1;
+	LPMESSAGE_CONTENT lpMessageContent = (LPMESSAGE_CONTENT)pParam2;
+
+	switch (lpMessageContent->nRequest)
+	{
+	case PROTOCOL_HEART_PLUSE:
+		printf("Client Send Pluse Request...\n");
+		OnHeartPluse(lpMessageHead, lpMessageContent);
+		break;
+	default:
+		break;
+	}
+}
+void CBaseServer::OnResponse(void* pParam1, void* pParam2)
+{
+
+}
+
+BOOL CBaseServer::OnHeartPluse(LPMESSAGE_HEAD pMessageHead, LPMESSAGE_CONTENT pMessageContent)
+{
+	CAutoLock lock(&m_csMapClientHeartBeat);
+	std::map<SOCKET, HEART_BEAT_DETECT>::iterator iter = m_mapClientHeartBeat.find(pMessageHead->hSocket);
+	if (iter != m_mapClientHeartBeat.end())
+	{
+		m_mapClientHeartBeat[pMessageHead->hSocket].m_uiDisconnectCount = 0;
+		m_mapClientHeartBeat[pMessageHead->hSocket].m_uiLastTick = m_nTick;
+	}
+	else
+	{
+		HEART_BEAT_DETECT stuHeartBeatDetect = { 0 };
+		stuHeartBeatDetect.m_Socket = pMessageHead->hSocket;
+		stuHeartBeatDetect.m_uiDisconnectCount = 0;
+		stuHeartBeatDetect.m_uiLastTick = m_nTick;
+		m_mapClientHeartBeat.insert(std::map<SOCKET, HEART_BEAT_DETECT>::value_type(stuHeartBeatDetect.m_Socket, stuHeartBeatDetect));
+	}
+
+	return TRUE;
+}
+
+void CBaseServer::ClientClosed(SOCKET scoSocket)
+{
+	{
+		CAutoLock lock(&m_csMapClientHeartBeat);
+		std::map<SOCKET, HEART_BEAT_DETECT>::iterator iter = m_mapClientHeartBeat.find(scoSocket);
+		if (iter != m_mapClientHeartBeat.end())
+		{
+			m_mapClientHeartBeat.erase(iter);
+		}
+	}
+	{
+		CAutoLock lock(&m_csHeartBeatWheel);
+		for (auto i = 0; i < HEART_BEAT_WHEEL_SLOT; i++)
+		{
+			for (auto iter = m_vectHeartBeatWheel[i].begin(); iter != m_vectHeartBeatWheel[i].end();)
+			{
+				if (scoSocket == *iter)
+				{
+					iter = m_vectHeartBeatWheel[i].erase(iter);
+					break;
+				}
+				else
+				{
+					++iter;
+				}
+			}
+		}
+	}
+	::closesocket(scoSocket);
+}
+
+LPCTSTR CBaseServer::GetIniFileName()
+{
+	getIniFile();
+	return m_szIniFilePath;
+}
+
+void CBaseServer::getIniFile()
 {
 	TCHAR szIniFile[MAX_PATH] = { 0 };
 	TCHAR szFullName[MAX_PATH] = { 0 };
@@ -320,8 +403,20 @@ TCHAR* CBaseServer::_getIniFile()
 	auto nIndex = strStr.find(ptr);
 	string strRes = strStr.substr(0, nIndex);
 	strRes.append("\\CPlusServer.ini");
-
+	//StringReplaceAllSubs(strRes, "\\", "\\\\");
 	StringToTchar(strRes, szIniFile);
+	//std::wcout << szIniFile << std::endl;
+	//_tprintf(szIniFile);
+	lstrcpy(m_szIniFilePath, szIniFile);
+}
+unsigned int CBaseServer::getConnections()
+{
+	CAutoLock lock(&m_csHeartBeatWheel);
+	unsigned int uiCount = 0;
+	for (auto i = 0; i < HEART_BEAT_WHEEL_SLOT; i++)
+	{
+		uiCount += m_vectHeartBeatWheel[i].size();
+	}
 
-	return szIniFile;
+	return uiCount;
 }

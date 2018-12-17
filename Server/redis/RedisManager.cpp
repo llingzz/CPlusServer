@@ -437,7 +437,7 @@ void CRedisManager::Test()
 {
 	REDIS_DATA stuRedisData = { 0 };
 	RD_HGET(this, "x", "x", stuRedisData);
-	//LOG_INFO(stuRedisData.strData);
+	printf(stuRedisData.strData);
 	cout << stuRedisData.strData << endl;
 }
 

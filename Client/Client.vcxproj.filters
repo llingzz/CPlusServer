@@ -27,6 +27,9 @@
     <ClInclude Include="Client.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="Utilities.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">

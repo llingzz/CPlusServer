@@ -15,11 +15,11 @@ CIOCPModule::~CIOCPModule()
 
 BOOL CIOCPModule::Initialize()
 {
-	//LOG_INFO("CIOCPModule::Initialize Start Initialize the Iocp Module...");
+	printf("CIOCPModule::Initialize Start Initialize the Iocp Module...\n");
 	m_hIocp = ::CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
 	if (NULL == m_hIocp)
 	{
-		//LOG_ERROR("Create Iocp Failed...");
+		printf("Create Iocp Failed...\n");
 		return FALSE;
 	}
 
@@ -28,31 +28,31 @@ BOOL CIOCPModule::Initialize()
 	m_nWorkerThreads = MAX_WORKER_THREADS_PER_PROCESS * systemInfo.dwNumberOfProcessors;
 	m_pWorkerThread = new HANDLE[m_nWorkerThreads];
 
-	unsigned long nThreadId = 0;
+	unsigned int nThreadId = 0;
 	for (auto i = 0; i < m_nWorkerThreads; i++)
 	{
 		LPWORKER_THREAD pWorkerThread = new WORKER_THREAD;
 		pWorkerThread->nThreadId = i;
 		pWorkerThread->pCIOCPModule = this;
 
-		m_pWorkerThread[i] = ::CreateThread(NULL, 0, WorkerThreadFunc, (void*)pWorkerThread, 0, &nThreadId);
+		m_pWorkerThread[i] = (HANDLE)::_beginthreadex(NULL, 0, WorkerThreadFunc, (void*)pWorkerThread, 0, &nThreadId);
 		if (NULL == m_pWorkerThread[i])
 		{
-			//LOG_ERROR("Create WorkerThread Failed at ThreadId : " << nThreadId << " : " << pWorkerThread->nThreadId);
+			printf("Create WorkerThread Failed at ThreadId :%d : %d\n" ,nThreadId , pWorkerThread->nThreadId);
 			return FALSE;
 		}
 	}
 
-	//LOG_INFO("Create " << m_nWorkerThreads << " WorkerThread Successful...");
-	//LOG_INFO("CIOCPModule::Initialize Initialize the Iocp Module Successful...");
+	printf("Create  %d WorkerThread Successful...\n", m_nWorkerThreads);
+	printf("CIOCPModule::Initialize Initialize the Iocp Module Successful...\n");
 
 	return TRUE;
 }
 
-DWORD __stdcall CIOCPModule::WorkerThreadFunc(LPVOID lpParam)
+unsigned int __stdcall CIOCPModule::WorkerThreadFunc(LPVOID lpParam)
 {
 	LPWORKER_THREAD pWorkerThread = (LPWORKER_THREAD)lpParam;
-	//LOG_INFO("The WorkerThread with Id : " << pWorkerThread->nThreadId << " Started...");
+	printf("The WorkerThread with Id :%d Started...\n", pWorkerThread->nThreadId);
 
 	OVERLAPPED* pOverlapped = NULL;
 	LPSOCKET_CONTEXT pSocketContext = NULL;
@@ -88,7 +88,8 @@ DWORD __stdcall CIOCPModule::WorkerThreadFunc(LPVOID lpParam)
 			//判断客户端是否断开
 			if (0 == dwByteTransfered && (OPE_RECV == pIoContext->m_OpeType || OPE_SEND == pIoContext->m_OpeType))
 			{
-				//LOG_ERROR("Client: " << inet_ntoa(pSocketContext->m_SockAddrIn.sin_addr) << " : " << ntohs(pSocketContext->m_SockAddrIn.sin_port) << " Disconnected...");
+				printf("Client: %s:%d Disconnected...\n", inet_ntoa(pSocketContext->m_SockAddrIn.sin_addr), ntohs(pSocketContext->m_SockAddrIn.sin_port));
+				pWorkerThread->pCIOCPModule->m_pServer->ClientClosed(pSocketContext->m_Socket);
 				pWorkerThread->pCIOCPModule->RemoveSocketContext(pSocketContext);
 				continue;
 			}
@@ -104,14 +105,14 @@ DWORD __stdcall CIOCPModule::WorkerThreadFunc(LPVOID lpParam)
 					pWorkerThread->pCIOCPModule->m_pServer->m_IocpSocket->OnMessageHandle(pIoContext->m_OpeType, pSocketContext, pIoContext, pWorkerThread->pCIOCPModule->m_pServer);
 					break;
 				default:
-					//LOG_ERROR("pIoContext->m_OpType of Worker Thread's Params encounter A Problem...");
+					printf("pIoContext->m_OpType of Worker Thread's Params encounter A Problem...\n");
 					break;
 				}
 			}
 		}
 	}
 
-	//LOG_INFO("Worker Thread with ID:" << pWorkerThread->nThreadId << " Exit...");
+	printf("Worker Thread with ID:%d Exit...\n", pWorkerThread->nThreadId);
 	SAFE_DELETE(lpParam);
 
 	return 0;
@@ -143,27 +144,33 @@ BOOL CIOCPModule::HandleErrors(LPSOCKET_CONTEXT pSocketContext, const DWORD& dwE
 	{
 		if ((::send(pSocketContext->m_Socket, "", 0, 0) == -1))
 		{
-			//LOG_INFO("The Client exit with Exception...Exit Thread with： " << dwErr);
+			printf("The Client exit with Exception...Exit Thread with:%d\n" ,dwErr);
+			printf("\nClient: %s:%d Disconnected...\n", inet_ntoa(pSocketContext->m_SockAddrIn.sin_addr), ntohs(pSocketContext->m_SockAddrIn.sin_port));
+			this->m_pServer->ClientClosed(pSocketContext->m_Socket);
 			this->RemoveSocketContext(pSocketContext);
 			return TRUE;
 		}
 		else
 		{
-			//LOG_INFO("The Net Request is Timeout, Retrying...");
+			printf("The Net Request is Timeout, Retrying...\n");
 			return TRUE;
 		}
 	}
 
 	else if (ERROR_NETNAME_DELETED == dwErr)
 	{
-		//LOG_ERROR("The Client exit with Exception...Exit Thread with： " << dwErr);
+		printf("The Client exit with Exception...Exit Thread with： %d", dwErr);
+		printf("\nClient: %s:%d Disconnected...\n", inet_ntoa(pSocketContext->m_SockAddrIn.sin_addr), ntohs(pSocketContext->m_SockAddrIn.sin_port));
+		this->m_pServer->ClientClosed(pSocketContext->m_Socket);
 		this->RemoveSocketContext(pSocketContext);
 		return TRUE;
 	}
 
 	else
 	{
-		//LOG_ERROR("Finish IoComletionPort Failed...Exit Thread with： " << dwErr);
+		printf("Finish IoComletionPort Failed...Exit Thread with： %d", dwErr);
+		printf("\nClient: %s:%d Disconnected...\n", inet_ntoa(pSocketContext->m_SockAddrIn.sin_addr), ntohs(pSocketContext->m_SockAddrIn.sin_port));
+		this->m_pServer->ClientClosed(pSocketContext->m_Socket);
 		return FALSE;
 	}
 }

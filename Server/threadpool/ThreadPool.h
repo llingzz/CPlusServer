@@ -95,7 +95,7 @@ public:
 
 private:
 	TaskQueue m_tqTaskQueue;			//任务队列
-	CritSec m_csTaskQueue;				//临界区对象
+	CCritSec m_csTaskQueue;				//临界区对象
 	CEvent	m_eEvent;					//事件对象
 };
 
@@ -331,7 +331,7 @@ private:
 	int m_nCurrentThreads;										//当前总线程数
 
 	bool m_bIsExit;												//线程池退出标志
-	CritSec m_csMutex;											//临界区对象
+	CCritSec m_csMutex;											//临界区对象
 
 	CWorkerThreadList m_ltWorkersList;							//工作线程表
 	CWorkerThreadList m_ltIdleList;								//空闲线程表

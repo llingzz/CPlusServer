@@ -13,7 +13,7 @@ BOOL CIOCPAccept::PostAccept(LPIO_CONTEXT pIoContext, CBaseServer* pServer)
 {
 	if (INVALID_SOCKET == pServer->m_pListenContext->m_Socket)
 	{
-		//LOG_ERROR("CIOCPAccept::PostAccept The SOCKET is INVALID...");
+		printf("CIOCPAccept::PostAccept The SOCKET is INVALID...\n");
 		return FALSE;
 	}
 
@@ -26,7 +26,7 @@ BOOL CIOCPAccept::PostAccept(LPIO_CONTEXT pIoContext, CBaseServer* pServer)
 	pIoContext->m_Socket = ::WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
 	if (INVALID_SOCKET == pIoContext->m_Socket)
 	{
-		//LOG_ERROR("CIOCPAccept::PostAccept Create the SOCKET for Accept Failed...");
+		printf("CIOCPAccept::PostAccept Create the SOCKET for Accept Failed...\n");
 		return FALSE;
 	}
 
@@ -36,12 +36,12 @@ BOOL CIOCPAccept::PostAccept(LPIO_CONTEXT pIoContext, CBaseServer* pServer)
 	{
 		if (WSA_IO_PENDING != WSAGetLastError())
 		{
-			//LOG_ERROR("CIOCPAccept::PostAccept Post the AcceptEx Request Failed..." << WSAGetLastError());
+			printf("CIOCPAccept::PostAccept Post the AcceptEx Request Failed...%s\n", WSAGetLastError());
 			return FALSE;
 		}
-		//LOG_INFO("Post the AcceptEx Request Successful with m_pFnAcceptEx==FALSE...");
+		printf("Post the AcceptEx Request Successful with m_pFnAcceptEx==FALSE...\n");
 	}
-	//LOG_INFO("Post the AcceptEx Request Successful...");
+	printf("Post the AcceptEx Request Successful...\n");
 
 	return TRUE;
 }
@@ -64,8 +64,16 @@ BOOL CIOCPAccept::DoAccept(LPSOCKET_CONTEXT pSocketContext, LPIO_CONTEXT pIoCont
 		(LPSOCKADDR*)&siClientAddr,
 		&nSiClientLen);
 
-	//LOG_INFO("A Client Connected with IP:" << inet_ntoa(siClientAddr->sin_addr) << ":" << ntohs(siClientAddr->sin_port));
-	//LOG_INFO("Got Origin Data In DoAccept:" << pIoContext->m_WsaBuf.buf);
+	printf("A Client Connected with IP:%s:%d\n", inet_ntoa(siClientAddr->sin_addr), ntohs(siClientAddr->sin_port));
+	printf("Got Origin Data In DoAccept:%s\n", pIoContext->m_WsaBuf.buf);
+
+	//将新连接的客户端Socket信息保存起来
+	unsigned int nTemp = pServer->m_nTick % HEART_BEAT_WHEEL_SLOT;
+	unsigned int nIndex = (nTemp == 0 ? (HEART_BEAT_WHEEL_SLOT - 1) : nTemp);
+	{
+		CAutoLock lock(&pServer->m_csHeartBeatWheel);
+		pServer->m_vectHeartBeatWheel[nIndex].push_back(pIoContext->m_Socket);
+	}
 
 	//接着新建一个SOCKET_CONTEXT用于新连入的Socket，保留原来的Context用于监听下一个连接
 	LPSOCKET_CONTEXT pNewSocketContext = new SOCKET_CONTEXT;
@@ -79,7 +87,7 @@ BOOL CIOCPAccept::DoAccept(LPSOCKET_CONTEXT pSocketContext, LPIO_CONTEXT pIoCont
 	//与完成端口绑定
 	if (NULL == (::CreateIoCompletionPort((HANDLE)pNewSocketContext->m_Socket, pServer->m_IocpModule->m_hIocp, (DWORD)pNewSocketContext, 0)))
 	{
-		//LOG_ERROR("CIOCPAccept::DoAccept Associate with the IOCP Failed...");
+		printf("CIOCPAccept::DoAccept Associate with the IOCP Failed...\n");
 		SAFE_DELETE(pNewSocketContext);
 	}
 
@@ -98,7 +106,7 @@ BOOL CIOCPAccept::DoAccept(LPSOCKET_CONTEXT pSocketContext, LPIO_CONTEXT pIoCont
 
 	if (FALSE == pServer->m_IocpSocket->PostRecv(pNewIoContext, pServer))
 	{
-		//LOG_ERROR("CIOCPAccept::DoAccept Post NewIoContext Failed...");
+		printf("CIOCPAccept::DoAccept Post NewIoContext Failed...\n");
 
 		std::vector<LPIO_CONTEXT>::iterator iter;
 		for (iter = pNewSocketContext->m_vectIoContext.begin(); iter != pNewSocketContext->m_vectIoContext.end();)
@@ -119,9 +127,6 @@ BOOL CIOCPAccept::DoAccept(LPSOCKET_CONTEXT pSocketContext, LPIO_CONTEXT pIoCont
 	//投递成功的话就将这个有效的客户端信息添加到m_vectClientContext
 	CAutoLock lock(&pServer->m_csVectClientContext);
 	pServer->m_vectClientConetxt.push_back(pNewSocketContext);
-
-	//将连接上的客户端放入map中集中管理
-	//pServer->m_mapClientHeartBeat.insert(std::pair<int, SOCKET>(std::stoi(pIoContext->m_WsaBuf.buf), pIoContext->m_Socket));
 
 	//重置ListenSocket上面的IoContext，用于准备投递新的AccepEx
 	ZeroMemory(pIoContext->m_szBuffer, DATA_BUF_SIZE);

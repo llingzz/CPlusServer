@@ -5,12 +5,12 @@
 
 #define DEFAULT_IP		"127.0.0.1"
 #define DEFAULT_PORT	8888
-#define DEFAULT_THREAD	10
+#define DEFAULT_THREAD	1
 
 #define MAC_TEST_SEND		10000
 #define MAC_TEST_SEND_EX	10001
 
-#define MAX_DATA_BUF_SIZE	1*1024
+#define MAX_DATA_BUF_SIZE	(8 * 1024)
 
 class CClient;
 
@@ -27,9 +27,21 @@ typedef struct _stuREQUEST_HEAD {
 }REQUEST_HEAD, *LPREQUEST_HEAD;
 
 typedef struct _stuBASE_DATA {
-	REQUEST_HEAD stuRequestHead;
+	int stuRequestHead;
 	CHAR dataBuff[MAX_DATA_BUF_SIZE];
 }BASE_DATA, *LPBASE_DATA;
+
+typedef struct _tagMESSAGE_HEAD{
+	SOCKET	hSocket;
+	LONG	lSession;
+	LONG	lTokenID;
+}MESSAGE_HEAD, *LPMESSAGE_HEAD;
+
+typedef struct _tagMESSAGE_CONTENT{
+	UINT	nRequest;
+	int		nDataLen;
+	void*	pDataPtr;
+}MESSAGE_CONTENT, *LPMESSAGE_CONTENT;
 
 class CClient
 {
@@ -45,15 +57,17 @@ public:
 public:
 	BOOL LoadSocketLib();
 	void UnloadSocketLib();
-	//BOOL IsConnect() { return (m_hShutdownEvent != NULL); }
 
 private:
 	BOOL InitialiazeConnection();
 	BOOL ConnectToServer(SOCKET* pSocket, char* pServerIP, int nPort);
 
-	static DWORD __stdcall ConnectionThread(LPVOID lpParam);
-	static DWORD __stdcall SendThread(LPVOID lpParam);
-	static DWORD __stdcall RecvThread(LPVOID lpParam);
+	void SendData(SOCKET socket, char* pData, int nDataLen);
+	void SendData(SOCKET socket, UINT nRequest, void* pData, int nDataLen);
+
+	static unsigned int __stdcall ConnectionThread(LPVOID lpParam);
+	static unsigned int __stdcall SendThread(LPVOID lpParam);
+	static unsigned int __stdcall RecvThread(LPVOID lpParam);
 
 private:
 	char*						m_szServerIP;				//服务器IP
@@ -67,6 +81,5 @@ private:
 
 	HANDLE						m_hConnectionThread;		//服务器连接句柄
 	HANDLE						m_hShutdownEvent;			//客户端关闭连接句柄
-
 	CRITICAL_SECTION			m_csSend;
 };

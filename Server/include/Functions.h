@@ -122,3 +122,15 @@ static void CharToTchar(const char* car, TCHAR* tar, const int nCharSize)
 	int nLen = MultiByteToWideChar(CP_ACP, 0, car, nCharSize + 1, NULL, 0);
 	MultiByteToWideChar(CP_ACP, 0, car, nCharSize + 1, tar, nLen/**sizeof(TCHAR)*/);
 }
+
+static void StringReplaceAllSubs(string& tar, const string& sub, const string& replace)
+{
+	string::size_type pos = 0;
+	string::size_type pos1 = sub.size();
+	string::size_type pos2 = replace.size();
+	while ((pos = tar.find(sub, pos)) != string::npos)
+	{
+		tar.replace(pos, pos1, replace);
+		pos += pos2;
+	}
+}

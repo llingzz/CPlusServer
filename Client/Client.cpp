@@ -2,6 +2,7 @@
 //
 
 #include "stdafx.h"
+#include <process.h>
 
 #define SAFE_RELEASE_HANDLE(x)               {if(x != NULL && x!=INVALID_HANDLE_VALUE){ CloseHandle(x);x = NULL;}}
 #define SAFE_RELEASE(x)                      {if(x != NULL ){delete x;x=NULL;}}
@@ -25,7 +26,7 @@ CClient::~CClient()
 
 BOOL CClient::InitialiazeConnection()
 {
-	DWORD nThreadID;
+	unsigned int nThreadID;
 
 	m_phSendThreads = new HANDLE[m_nThreads];
 	m_phRecvThreads = new HANDLE[m_nThreads];
@@ -52,9 +53,15 @@ BOOL CClient::InitialiazeConnection()
 		sprintf(m_pWorkerThreadParam[i].szBuffer, "Thread:%d Data:%s", m_pWorkerThreadParam[i].nThreadId, "Hello Server...");
 		m_pWorkerThreadParam[i].pClient = this;
 
-		m_phRecvThreads[i] = ::CreateThread(0, 0, RecvThread, (void*)&m_pWorkerThreadParam[i], 0, &nThreadID);
+		m_phRecvThreads[i] = (HANDLE)::_beginthreadex(0, 0, RecvThread, (void*)&m_pWorkerThreadParam[i], 0, &nThreadID);
 #if 1
-		m_phSendThreads[i] = ::CreateThread(0, 0, SendThread, (void*)&m_pWorkerThreadParam[i], 0, &nThreadID);
+		//m_phSendThreads[i] = (HANDLE)::_beginthreadex(0, 0, SendThread, (void*)&m_pWorkerThreadParam[i], 0, &nThreadID);
+		char test[] = "test";
+		while (1)
+		{
+			SendData(m_pWorkerThreadParam[i].sSocket, 10000, test, sizeof(test));
+			Sleep(5000);
+		}
 #else
 		auto nBytesSend = 0;
 		char szSend[MAX_DATA_BUF_SIZE];
@@ -137,11 +144,11 @@ void CClient::UnloadSocketLib()
 BOOL CClient::Run()
 {
 	m_hShutdownEvent = ::CreateEvent(NULL, TRUE, FALSE, NULL);
-	DWORD nThreadID;
+	unsigned int nThreadID;
 
 	WORKER_THREAD_PARAM* pWorkerThreadParams = new WORKER_THREAD_PARAM;
 	pWorkerThreadParams->pClient = this;
-	m_hConnectionThread = ::CreateThread(0, 0, ConnectionThread, (void*)pWorkerThreadParams, 0, &nThreadID);
+	m_hConnectionThread = (HANDLE)::_beginthreadex(0, 0, ConnectionThread, (void*)pWorkerThreadParams, 0, &nThreadID);
 
 	return TRUE;
 }
@@ -184,7 +191,7 @@ void CClient::CleanUp()
 	SAFE_RELEASE_HANDLE(m_hShutdownEvent);
 }
 
-DWORD __stdcall CClient::ConnectionThread(LPVOID lpParam)
+unsigned int __stdcall CClient::ConnectionThread(LPVOID lpParam)
 {
 
 	WORKER_THREAD_PARAM* pParam = (WORKER_THREAD_PARAM*)lpParam;
@@ -199,7 +206,7 @@ DWORD __stdcall CClient::ConnectionThread(LPVOID lpParam)
 	return 0;
 }
 
-DWORD __stdcall CClient::SendThread(LPVOID lpParam)
+unsigned int __stdcall CClient::SendThread(LPVOID lpParam)
 {
 	WORKER_THREAD_PARAM* pParam = (WORKER_THREAD_PARAM*)lpParam;
 	CClient* pClient = (CClient*)pParam->pClient;
@@ -236,7 +243,7 @@ DWORD __stdcall CClient::SendThread(LPVOID lpParam)
 	}
 	//std::cout << "Send Second Data to Server Successful..." << std::endl;
 
-#else
+#elif 0
 	BASE_DATA stuSendData = { 0 };
 	stuSendData.stuRequestHead.nRequest = MAC_TEST_SEND;
 	strcpy(stuSendData.dataBuff, "Hello Server!");
@@ -263,13 +270,15 @@ DWORD __stdcall CClient::SendThread(LPVOID lpParam)
 	return 1;
 	}
 	std::cout << "Send Data to Server Successful..." << std::endl;*/
+#else
+
 #endif
 	//LeaveCriticalSection(&pClient->m_csSend);
 
 	return 0;
 }
 
-DWORD __stdcall CClient::RecvThread(LPVOID lpParam)
+unsigned int __stdcall CClient::RecvThread(LPVOID lpParam)
 {
 	WORKER_THREAD_PARAM* pParam = (WORKER_THREAD_PARAM*)lpParam;
 	CClient* pClient = (CClient*)pParam->pClient;
@@ -299,6 +308,32 @@ DWORD __stdcall CClient::RecvThread(LPVOID lpParam)
 	return 0;
 }
 
+void CClient::SendData(SOCKET socket, char* pData, int nDataLen)
+{
+	auto nBytesSend = ::send(socket, pData, nDataLen, 0);
+	if (SOCKET_ERROR == nBytesSend)
+	{
+		std::cout << "Send Message Failed..." << std::endl;
+	}
+}
+
+void CClient::SendData(SOCKET socket, UINT nRequest, void* pData, int nDataLen)
+{
+	MESSAGE_HEAD stuMessageHead = { 0 };
+	stuMessageHead.hSocket = socket;
+	MESSAGE_CONTENT stuMessageContent = { 0 };
+	stuMessageContent.nRequest = nRequest;
+	stuMessageContent.nDataLen = nDataLen;
+	stuMessageContent.pDataPtr = pData;
+
+	CBufferEx myDataPool;
+	myDataPool.Write((PBYTE)&stuMessageHead, sizeof(MESSAGE_HEAD));
+	myDataPool.Write((PBYTE)&stuMessageContent, sizeof(MESSAGE_CONTENT));
+	myDataPool.Write((PBYTE)pData, nDataLen);
+
+	SendData(socket, (char*)myDataPool.c_Bytes(), myDataPool.GetLength());
+}
+
 int _tmain(int argc, _TCHAR* argv[])
 {
 	CClient* pClient = new CClient();
@@ -307,4 +342,3 @@ int _tmain(int argc, _TCHAR* argv[])
 	getchar();
 	return 0;
 }
-

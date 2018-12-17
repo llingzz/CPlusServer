@@ -17,7 +17,6 @@ void TimeWheel::StartTimer()
 	DWORD uiThreadID = 0;
 	unsigned int uiID = 0;
 	HANDLE handle = (HANDLE)_beginthreadex(NULL, 0, _runTimer, this, 0, NULL);
-	//CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)_runTimer, this, 0, &uiThreadID);
 }
 
 void TimeWheel::UpdateTimer()

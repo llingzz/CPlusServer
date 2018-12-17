@@ -24,21 +24,22 @@ BOOL CIOCPSocket::PostRecv(LPIO_CONTEXT pIoContext, CBaseServer* pServer)
 	if (SOCKET_ERROR == nRet && WSA_IO_PENDING != GetLastError())
 	{
 		//如果返回错误而且错误代码并非是Pending的话，请求失败
-		//LOG_ERROR("Post the WSARecv Failed...");
+		printf("Post the WSARecv Failed...\n");
 		return FALSE;
 	}
-	//LOG_INFO("Post WSARecv Successful...");
+	printf("Post WSARecv Successful...\n");
 
 	return TRUE;
 }
 void CIOCPSocket::DoRecv(LPIO_CONTEXT pIoContext, CBaseServer* pServer)
 {
-	//LOG_INFO("Get Data In DoRecv: " << pIoContext->m_WsaBuf.buf);
-
 	//处理来自客户端的所有消息请求
-	//TODO:如果得到的是客户端心跳消息,根据CBaseServer的当前计数将对应的客户端放入对应的心跳检测轮中进行心跳检测,以保持客户端的长连接
-
-
+	MESSAGE_HEAD stuHead = { 0 };
+	MESSAGE_CONTENT stuData = { 0 };
+	//printf("Recv Data : %s\n", pIoContext->m_WsaBuf.buf);
+	parseNetBuffer(pIoContext, stuHead, stuData);
+	pServer->OnRequest(&stuHead, &stuData);
+	//继续投递下一个Recv接受数据
 	PostRecv(pIoContext, pServer);
 }
 
@@ -55,17 +56,16 @@ BOOL CIOCPSocket::PostSend(LPIO_CONTEXT pIoContext, CBaseServer* pServer)
 	auto nRet = ::WSASend(pIoContext->m_Socket, pWSABuf, 1, &dwBytes, dwFlags, pOverlapped, NULL);
 	if ((SOCKET_ERROR == nRet) && (WSA_IO_PENDING != WSAGetLastError()))
 	{
-		//LOG_ERROR("Post the WSASend Failed...");
+		printf("Post the WSASend Failed...\n");
 		return FALSE;
 	}
-	//LOG_INFO("Post the WSASend Success...");
+	printf("Post the WSASend Success...\n");
 
 	return TRUE;
 }
 void CIOCPSocket::DoSend(LPSOCKET_CONTEXT pSocketContext, LPIO_CONTEXT pIoContext, CBaseServer* pServer)
 {
-	//LOG_INFO("Send Data To " << inet_ntoa(pSocketContext->m_SockAddrIn.sin_addr) << " : " << ntohs(pSocketContext->m_SockAddrIn.sin_port));
-
+	printf("Send Data To %s :%d\n", inet_ntoa(pSocketContext->m_SockAddrIn.sin_addr), ntohs(pSocketContext->m_SockAddrIn.sin_port));
 	PostSend(pIoContext, pServer);
 }
 
@@ -74,7 +74,6 @@ void CIOCPSocket::OnMessageHandle(OPE_TYPE enOPEType, LPSOCKET_CONTEXT pSocketCo
 	switch (enOPEType)
 	{
 	case OPE_SEND:
-		//DoSend(pSocketContext, pIoContext, pServer);
 		break;
 	case OPE_RECV:
 		DoRecv(pIoContext, pServer);
@@ -82,4 +81,20 @@ void CIOCPSocket::OnMessageHandle(OPE_TYPE enOPEType, LPSOCKET_CONTEXT pSocketCo
 	default:
 		break;
 	}
+}
+
+void CIOCPSocket::parseNetBuffer(LPIO_CONTEXT pIoContext, MESSAGE_HEAD& stuHead, MESSAGE_CONTENT& stuData)
+{
+	//客户端向服务端发送请求时，统一数据格式MESSAGE_HEAD + MESSAGE_CONTENT
+	LPMESSAGE_HEAD lpMessageHead = LPMESSAGE_HEAD(PBYTE(pIoContext->m_WsaBuf.buf));
+	stuHead.hSocket = pIoContext->m_Socket;
+	stuHead.lSession = lpMessageHead->lSession;
+	stuHead.lTokenID = lpMessageHead->lTokenID;
+	LPMESSAGE_CONTENT lpMessageContent = LPMESSAGE_CONTENT(PBYTE(pIoContext->m_WsaBuf.buf + sizeof(MESSAGE_HEAD)));
+	stuData.nRequest = lpMessageContent->nRequest;
+	stuData.nDataLen = lpMessageContent->nDataLen;
+	auto pDataPtr = (char*)(PBYTE(pIoContext->m_WsaBuf.buf + sizeof(MESSAGE_HEAD)+sizeof(MESSAGE_CONTENT)));
+	stuData.pDataPtr = pDataPtr;
+
+	printf("%d:%d:%d---%d:%d:%s\n", stuHead.hSocket, stuHead.lSession, stuHead.lTokenID, stuData.nRequest, stuData.nDataLen, stuData.pDataPtr);
 }

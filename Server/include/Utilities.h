@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Windows.h>
+#include <vector>
 
 /* 单例模板 */
 template<typename T>
@@ -41,17 +42,17 @@ template<typename T>
 T* CSingle<T>::m_pInstance = NULL;
 
 /*临界区对象，线程同步*/
-class CritSec : public CSingle<CritSec>
+class CCritSec : public CSingle<CCritSec>
 {
 public:
-	CritSec() { ::InitializeCriticalSection(&m_csCritSec); }
-	~CritSec() { ::DeleteCriticalSection(&m_csCritSec); }
+	CCritSec() { ::InitializeCriticalSection(&m_csCritSec); }
+	~CCritSec() { ::DeleteCriticalSection(&m_csCritSec); }
 
-	CritSec(const CritSec& critSec)
+	CCritSec(const CCritSec& critSec)
 	{
 		this->m_csCritSec = critSec.m_csCritSec;
 	}
-	CritSec& operator=(const CritSec& critSec)
+	CCritSec& operator=(const CCritSec& critSec)
 	{
 		if (this != &critSec)
 		{
@@ -75,10 +76,10 @@ class CAutoLock {
 	CAutoLock &operator=(const CAutoLock &refAutoLock);
 
 protected:
-	CritSec * m_pLock;
+	CCritSec * m_pLock;
 
 public:
-	CAutoLock(CritSec * plock)
+	CAutoLock(CCritSec * plock)
 	{
 		m_pLock = plock;
 		m_pLock->Lock();
@@ -126,7 +127,6 @@ public:
 	{
 		if (NULL == pData || nSize <= 0)
 		{
-			cout << "the pData is NULL OR nSize == 0 !" << endl;
 			return -1;
 		}
 
@@ -300,7 +300,7 @@ public:
 
 	void Clear()
 	{
-		vector<BYTE>().swap(this->m_vecBuffer);
+		std::vector<BYTE>().swap(this->m_vecBuffer);
 	}
 	int GetLength() const
 	{
@@ -313,4 +313,35 @@ public:
 
 private:
 	std::vector<BYTE> m_vecBuffer;
+};
+
+//开源日志库spdlog
+/*The MIT License (MIT)
+
+Copyright (c) 2016 Gabi Melman.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+*/
+class CLog : public CSingle<CLog>
+{
+public:
+	CLog(){}
+	~CLog(){}
+
 };
