@@ -196,11 +196,7 @@ unsigned int __stdcall CClient::ConnectionThread(LPVOID lpParam)
 
 	WORKER_THREAD_PARAM* pParam = (WORKER_THREAD_PARAM*)lpParam;
 	CClient* pClient = (CClient*)pParam->pClient;
-
-	//std::cout << "AcceptThread Started...Keeping Listenning..." << std::endl;
-
 	pClient->InitialiazeConnection();
-	//std::cout << "ConnectionThread End..." << std::endl;
 
 	SAFE_RELEASE(pParam);
 	return 0;

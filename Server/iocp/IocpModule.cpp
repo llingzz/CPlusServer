@@ -89,7 +89,7 @@ unsigned int __stdcall CIOCPModule::WorkerThreadFunc(LPVOID lpParam)
 			if (0 == dwByteTransfered && (OPE_RECV == pIoContext->m_OpeType || OPE_SEND == pIoContext->m_OpeType))
 			{
 				printf("Client: %s:%d Disconnected...\n", inet_ntoa(pSocketContext->m_SockAddrIn.sin_addr), ntohs(pSocketContext->m_SockAddrIn.sin_port));
-				pWorkerThread->pCIOCPModule->m_pServer->ClientClosed(pSocketContext->m_Socket);
+				pWorkerThread->pCIOCPModule->m_pServer->CloseClients(pSocketContext->m_Socket);
 				pWorkerThread->pCIOCPModule->RemoveSocketContext(pSocketContext);
 				continue;
 			}
@@ -146,7 +146,7 @@ BOOL CIOCPModule::HandleErrors(LPSOCKET_CONTEXT pSocketContext, const DWORD& dwE
 		{
 			printf("The Client exit with Exception...Exit Thread with:%d\n" ,dwErr);
 			printf("\nClient: %s:%d Disconnected...\n", inet_ntoa(pSocketContext->m_SockAddrIn.sin_addr), ntohs(pSocketContext->m_SockAddrIn.sin_port));
-			this->m_pServer->ClientClosed(pSocketContext->m_Socket);
+			this->m_pServer->CloseClients(pSocketContext->m_Socket);
 			this->RemoveSocketContext(pSocketContext);
 			return TRUE;
 		}
@@ -161,7 +161,7 @@ BOOL CIOCPModule::HandleErrors(LPSOCKET_CONTEXT pSocketContext, const DWORD& dwE
 	{
 		printf("The Client exit with Exception...Exit Thread with£º %d", dwErr);
 		printf("\nClient: %s:%d Disconnected...\n", inet_ntoa(pSocketContext->m_SockAddrIn.sin_addr), ntohs(pSocketContext->m_SockAddrIn.sin_port));
-		this->m_pServer->ClientClosed(pSocketContext->m_Socket);
+		this->m_pServer->CloseClients(pSocketContext->m_Socket);
 		this->RemoveSocketContext(pSocketContext);
 		return TRUE;
 	}
@@ -170,7 +170,7 @@ BOOL CIOCPModule::HandleErrors(LPSOCKET_CONTEXT pSocketContext, const DWORD& dwE
 	{
 		printf("Finish IoComletionPort Failed...Exit Thread with£º %d", dwErr);
 		printf("\nClient: %s:%d Disconnected...\n", inet_ntoa(pSocketContext->m_SockAddrIn.sin_addr), ntohs(pSocketContext->m_SockAddrIn.sin_port));
-		this->m_pServer->ClientClosed(pSocketContext->m_Socket);
+		this->m_pServer->CloseClients(pSocketContext->m_Socket);
 		return FALSE;
 	}
 }

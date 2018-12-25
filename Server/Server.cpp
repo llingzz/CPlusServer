@@ -26,13 +26,6 @@ public:
 
 	virtual void Run();
 
-	/*void Run()
-	{
-	{
-	printf("Ö´ÐÐÈÎÎñ%d\n", m_nTest);
-	}
-	}*/
-
 private:
 	int m_nTest;
 };
@@ -58,7 +51,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 		if ('S' == ch)
 		{
-			GameServer.TestSend();
+			//GameServer.TestSend();
 		}
 		//ch = 'Q';
 

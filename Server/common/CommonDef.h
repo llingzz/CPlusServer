@@ -52,6 +52,52 @@ typedef struct _tagSOCKET_CONTEXT{
 	std::vector<LPIO_CONTEXT> m_vectIoContext;			//该Socket所有的IO上下文操作
 }SOCKET_CONTEXT, *LPSOCKET_CONTEXT;
 
+class CIoContext{
+public:
+	CIoContext(){
+		ZeroMemory(&m_Overlapped, sizeof(OVERLAPPED));
+		m_Socket = INVALID_SOCKET;
+		ZeroMemory(&m_szBuffer, DATA_BUF_SIZE);
+		m_WsaBuf.len = sizeof(m_szBuffer);
+		m_WsaBuf.buf = m_szBuffer;
+		m_OpeType = OPE_NULL;
+	}
+	~CIoContext(){
+		ZeroMemory(&m_Overlapped, sizeof(OVERLAPPED));
+		m_Socket = INVALID_SOCKET;
+		ZeroMemory(&m_szBuffer, DATA_BUF_SIZE);
+		m_WsaBuf.len = sizeof(m_szBuffer);
+		m_WsaBuf.buf = m_szBuffer;
+		m_OpeType = OPE_NULL;
+	}
+public:
+	OVERLAPPED	m_Overlapped;
+	SOCKET		m_Socket;
+	CHAR		m_szBuffer[DATA_BUF_SIZE];
+	WSABUF		m_WsaBuf;
+	OPE_TYPE	m_OpeType;
+};
+typedef CIoContext* LPCIoContext;
+
+class CClientContext{
+public:
+	CClientContext(){
+		m_Socket = INVALID_SOCKET;
+		ZeroMemory(&m_SockAddrIn, sizeof(sockaddr_in));
+		m_vectIoContext.clear();
+	}
+	~CClientContext(){
+		m_Socket = INVALID_SOCKET;
+		ZeroMemory(&m_SockAddrIn, sizeof(sockaddr_in));
+		m_vectIoContext.clear();
+	}
+public:
+	SOCKET					m_Socket;
+	sockaddr_in				m_SockAddrIn;
+	std::vector<LPCIoContext> m_vectIoContext;
+};
+typedef CClientContext* LPClientContext;
+
 typedef struct _tagMESSAGE_HEAD{
 	SOCKET	hSocket;
 	LONG	lSession;
@@ -63,43 +109,6 @@ typedef struct _tagMESSAGE_CONTENT{
 	int		nDataLen;
 	void*	pDataPtr;
 }MESSAGE_CONTENT, *LPMESSAGE_CONTENT;
-
-typedef struct _tagCONTEXT_HEAD{
-	SOCKET	hSocket;		
-	LONG	lSession;		
-	BOOL	bNeedEcho;		
-	LONG	lTokenID;		
-	DWORD	dwFlags;		
-	int		nReserved[1];
-}CONTEXT_HEAD, *LPCONTEXT_HEAD;
-
-typedef struct _tagREQUEST_HEAD{
-	INT		nRepeated;
-	UINT	nRequest;
-	int		nValue;
-	int		nSubReq;
-	WPARAM	wParam;
-	LPARAM	lParam;
-}REQUEST_HEAD, *LPREQUEST_HEAD;
-
-class REQUEST{
-public:
-	REQUEST(){
-		ZeroMemory(this, sizeof(REQUEST));
-	}
-	REQUEST(UINT nReq, void* pData, int nLen){
-		ZeroMemory(this, sizeof(REQUEST));
-		head.nRequest = nReq;
-		pDataPtr = pData;
-		nDataLen = nLen;
-	}
-	~REQUEST(){
-	}
-	REQUEST_HEAD head;
-	int		nDataLen;
-	VOID*	pDataPtr;
-};
-typedef REQUEST*  LPREQUEST;
 
 //心跳检测包
 typedef struct _tagHEART_BEAT_DETECT{

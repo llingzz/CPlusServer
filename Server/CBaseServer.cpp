@@ -25,9 +25,9 @@ CBaseServer::~CBaseServer()
 	OnWorkerExit();
 }
 
-BOOL CBaseServer::OnWorkerStart(CIOCPModule* pCIocModule)
+BOOL CBaseServer::OnWorkerStart(CIOCPModule* pCIocpModule)
 {
-	pCIocModule->m_hShutdownEvent = ::CreateEvent(NULL, FALSE, FALSE, NULL);
+	pCIocpModule->m_hShutdownEvent = ::CreateEvent(NULL, FALSE, FALSE, NULL);
 	m_hShutdownEvent = ::CreateEvent(NULL, FALSE, FALSE, NULL);
 
 	return TRUE;
@@ -221,31 +221,6 @@ void CBaseServer::UnloadSocketLib()
 	WSACleanup();
 }
 
-void CBaseServer::TestSend()
-{
-	LPIO_CONTEXT pIoContext = new IO_CONTEXT;
-	ZeroMemory(&pIoContext->m_Overlapped, sizeof(OVERLAPPED));
-	ZeroMemory(&pIoContext->m_szBuffer, DATA_BUF_SIZE);
-	pIoContext->m_WsaBuf.len = DATA_BUF_SIZE;
-	pIoContext->m_Socket = INVALID_SOCKET;
-
-	CAutoLock lock(&m_csVectClientContext);
-	pIoContext->m_OpeType = OPE_SEND;
-	for (unsigned i = 0; i < m_vectClientConetxt.size(); i++)
-	{
-		pIoContext->m_Socket = m_vectClientConetxt.at(i)->m_Socket;
-		strcpy(pIoContext->m_szBuffer, "TestSend");
-		pIoContext->m_WsaBuf.buf = pIoContext->m_szBuffer;
-#if 1
-		
-#else
-		
-#endif
-
-		m_IocpSocket->DoSend(m_vectClientConetxt.at(i), pIoContext, this);
-	}
-}
-
 unsigned int CBaseServer::heartbeatFunc(LPVOID pParam)
 {
 	CBaseServer* pServer = (CBaseServer*)pParam;
@@ -286,7 +261,7 @@ void CBaseServer::detectHeartBeat(unsigned int& nIndex, HEART_BEAT_DETECT& stuHe
 	//心跳缺失检测三次以上直接断开该Socket的连接
 	if (stuHeartBeatDetect.m_uiDisconnectCount > MAX_DISCONNECTION_TIMES)
 	{
-		ClientClosed(socket);
+		CloseClients(socket);
 	}
 	//心跳检测正常的重新放入循环
 	else
@@ -304,12 +279,46 @@ void CBaseServer::detectHeartBeat(unsigned int& nIndex, HEART_BEAT_DETECT& stuHe
 	}
 }
 
-BOOL CBaseServer::SendRequest(SOCKET client)
+BOOL CBaseServer::SendRequest(SOCKET client, LPMESSAGE_HEAD lpMessageHead, LPMESSAGE_CONTENT lpMessageContent)
 {
+	LPIO_CONTEXT pIoContext = new IO_CONTEXT;
+	ZeroMemory(&pIoContext->m_Overlapped, sizeof(OVERLAPPED));
+	ZeroMemory(&pIoContext->m_szBuffer, DATA_BUF_SIZE);
+	pIoContext->m_WsaBuf.len = DATA_BUF_SIZE;
+	pIoContext->m_Socket = INVALID_SOCKET;
+
+	CBufferEx myDataPool;
+	myDataPool.Write((PBYTE)lpMessageHead, sizeof(MESSAGE_HEAD));
+	myDataPool.Write((PBYTE)lpMessageContent, sizeof(MESSAGE_CONTENT));
+
+	LPSOCKET_CONTEXT pSocketContext = getClientSocketContext(client);
+	if (!pSocketContext)
+	{
+		return FALSE;
+	}
+	m_IocpSocket->DoSend(pSocketContext, pIoContext, this);
+
 	return TRUE;
 }
-BOOL CBaseServer::SendResponse(SOCKET client)
+BOOL CBaseServer::SendResponse(SOCKET client, LPMESSAGE_HEAD lpMessageHead, LPMESSAGE_CONTENT lpMessageContent)
 {
+	LPIO_CONTEXT pIoContext = new IO_CONTEXT;
+	ZeroMemory(&pIoContext->m_Overlapped, sizeof(OVERLAPPED));
+	ZeroMemory(&pIoContext->m_szBuffer, DATA_BUF_SIZE);
+	pIoContext->m_WsaBuf.len = DATA_BUF_SIZE;
+	pIoContext->m_Socket = INVALID_SOCKET;
+
+	CBufferEx myDataPool;
+	myDataPool.Write((PBYTE)lpMessageHead, sizeof(MESSAGE_HEAD));
+	myDataPool.Write((PBYTE)lpMessageContent, sizeof(MESSAGE_CONTENT));
+
+	LPSOCKET_CONTEXT pSocketContext = getClientSocketContext(client);
+	if (!pSocketContext)
+	{
+		return FALSE;
+	}
+	m_IocpSocket->DoSend(pSocketContext, pIoContext, this);
+
 	return TRUE;
 }
 void CBaseServer::OnRequest(void* pParam1, void* pParam2)
@@ -320,7 +329,7 @@ void CBaseServer::OnRequest(void* pParam1, void* pParam2)
 	switch (lpMessageContent->nRequest)
 	{
 	case PROTOCOL_HEART_PLUSE:
-		printf("Client Send Pluse Request...\n");
+		printf("Client:%d Socket:%d Send Pluse Request...\n", lpMessageHead->lTokenID, lpMessageHead->hSocket);
 		OnHeartPluse(lpMessageHead, lpMessageContent);
 		break;
 	default:
@@ -353,7 +362,7 @@ BOOL CBaseServer::OnHeartPluse(LPMESSAGE_HEAD pMessageHead, LPMESSAGE_CONTENT pM
 	return TRUE;
 }
 
-void CBaseServer::ClientClosed(SOCKET scoSocket)
+void CBaseServer::CloseClients(SOCKET scoSocket)
 {
 	{
 		CAutoLock lock(&m_csMapClientHeartBeat);
@@ -403,10 +412,7 @@ void CBaseServer::getIniFile()
 	auto nIndex = strStr.find(ptr);
 	string strRes = strStr.substr(0, nIndex);
 	strRes.append("\\CPlusServer.ini");
-	//StringReplaceAllSubs(strRes, "\\", "\\\\");
 	StringToTchar(strRes, szIniFile);
-	//std::wcout << szIniFile << std::endl;
-	//_tprintf(szIniFile);
 	lstrcpy(m_szIniFilePath, szIniFile);
 }
 unsigned int CBaseServer::getConnections()
@@ -419,4 +425,18 @@ unsigned int CBaseServer::getConnections()
 	}
 
 	return uiCount;
+}
+LPSOCKET_CONTEXT CBaseServer::getClientSocketContext(SOCKET client)
+{
+	CAutoLock lock(&m_csVectClientContext);
+	unsigned int i = 0;
+	for (; i < m_vectClientConetxt.size(); i++)
+	{
+		if (client == m_vectClientConetxt.at(i)->m_Socket)
+		{
+			return m_vectClientConetxt.at(i);
+		}
+	}
+
+	return NULL;
 }

@@ -9,22 +9,21 @@ public:
 	BOOL Initialize();
 	void Shutdown();
 
-	BOOL OnWorkerStart(CIOCPModule* pCIocModule);
+	BOOL OnWorkerStart(CIOCPModule* pCIocpModule);
 	void OnWorkerExit();
 
 	BOOL LoadSocketLib();
 	void UnloadSocketLib();
 
-	void TestSend();
-	BOOL SendRequest(SOCKET client/*,消息头,消息请求*/);
-	BOOL SendResponse(SOCKET client/*,消息头,消息请求*/);
+	BOOL SendRequest(SOCKET client, LPMESSAGE_HEAD lpMessageHead, LPMESSAGE_CONTENT lpMessageContent);
+	BOOL SendResponse(SOCKET client, LPMESSAGE_HEAD lpMessageHead, LPMESSAGE_CONTENT lpMessageContent);
 
 	void OnRequest(void* pParam1, void* pParam2);
 	void OnResponse(void* pParam1, void* pParam2);
 
 	BOOL OnHeartPluse(LPMESSAGE_HEAD pMessageHead, LPMESSAGE_CONTENT pMessageContent);
 
-	void ClientClosed(SOCKET scoSocket);
+	void CloseClients(SOCKET scoSocket);
 
 	LPCTSTR GetIniFileName();
 private:
@@ -32,6 +31,8 @@ private:
 	inline void detectHeartBeat(unsigned int& nIndex, HEART_BEAT_DETECT& stuHeartBeatDetect);
 	void getIniFile();
 	unsigned int getConnections();
+
+	LPSOCKET_CONTEXT getClientSocketContext(SOCKET client);
 
 public:
 	TCHAR							m_szIp[IP_LENGTH];							//服务器IP
