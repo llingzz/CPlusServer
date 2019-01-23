@@ -4,22 +4,28 @@
 #include <MSWSock.h>
 #pragma comment(lib,"ws2_32.lib")
 
+#define				SERVER_NAME								"CPlusServer"
+
 #define				SAFE_DELETE(x)							{if(x!=NULL){delete x;x=NULL;}}
 #define				SAFE_RELEASE_SOCKET(x)					{if(x!=INVALID_SOCKET){closesocket(x);x=INVALID_SOCKET;}}
 #define				SAFE_RELEASE_HANDLE(x)					{if(x!=NULL&&x!=INVALID_HANDLE_VALUE){CloseHandle(x);x=NULL;}}
 
-#define				MAX_WORKER_THREADS_PER_PROCESS			2			//每个核心对应几个工作线程
-#define				MAX_MEANWHILE_POST_ACCEPT				1			//同时投递的Accept请求数
-#define				BASE_DATA_BUF_SIZE						(1 * 1024)	//基本数据缓存区大小
-#define				DATA_BUF_SIZE							(8 * 1024)	//数据缓冲区大小
-#define				ACCEPTEX_BYTES_OFFSET_SIZE				16			//AcceptEx字节偏移量
-#define				HEART_BEAT_WHEEL_SLOT					60			//心跳检测时间轮槽数
-#define				TIME_TICK								1000		//1000ms
-#define				IP_LENGTH								16			//IP字符串长度
-#define				MAX_DISCONNECTION_TIMES					3			//心跳包最大缺失次数
+#define				MAX_WORKER_THREADS_PER_PROCESS			2					//每个核心对应几个工作线程
+#define				MAX_MEANWHILE_POST_ACCEPT				1					//同时投递的Accept请求数
+#define				BASE_DATA_BUF_SIZE						(1 * 1024)			//基本数据缓存区大小
+#define				DATA_BUF_SIZE							(8 * 1024)			//数据缓冲区大小
+#define				ACCEPTEX_BYTES_OFFSET_SIZE				16					//AcceptEx字节偏移量
+#define				HEART_BEAT_WHEEL_SLOT					60					//心跳检测时间轮槽数
+#define				TIME_TICK								1000				//1000ms
+#define				IP_LENGTH								16					//IP字符串长度
+#define				MAX_DISCONNECTION_TIMES					3					//心跳包最大缺失次数
+
+//自定义内核消息
+#define				WM_DATA_TO_SEND							(WM_USER + 1000)
+#define				WM_DATA_TO_RECV							(WM_USER + 1001)
 
 //协议号
-#define				PROTOCOL_HEART_PLUSE					10000		//心跳
+#define				PROTOCOL_HEART_PLUSE					10000				//心跳
 
 //完成端口上投递IO操作类型
 typedef enum tagOPE_TYPE{

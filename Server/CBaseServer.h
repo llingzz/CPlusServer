@@ -15,6 +15,8 @@ public:
 	BOOL LoadSocketLib();
 	void UnloadSocketLib();
 
+	BOOL CreateMessageDealerThread();
+
 	BOOL SendRequest(SOCKET client, LPMESSAGE_HEAD lpMessageHead, LPMESSAGE_CONTENT lpMessageContent);
 	BOOL SendResponse(SOCKET client, LPMESSAGE_HEAD lpMessageHead, LPMESSAGE_CONTENT lpMessageContent);
 
@@ -28,6 +30,7 @@ public:
 	LPCTSTR GetIniFileName();
 private:
 	static unsigned int __stdcall heartbeatFunc(LPVOID pParam);
+	static unsigned int __stdcall messageDealerFunc(LPVOID pParam);
 	inline void detectHeartBeat(unsigned int& nIndex, HEART_BEAT_DETECT& stuHeartBeatDetect);
 	void getIniFile();
 	unsigned int getConnections();
@@ -45,6 +48,9 @@ public:
 	CIOCPSocket*					m_IocpSocket;								//IOCPSocket对象
 
 	HANDLE							m_hShutdownEvent;							//服务器关闭句柄
+	HANDLE							m_hMessageDealerEvent;						//消息处理事件句柄
+	HANDLE							m_hMessgaeDealerHandle;						//消息处理线程句柄
+	unsigned int					m_uiMessageDealerThreadId;					//消息处理线程ID
 
 	CCritSec						m_csVectClientContext;						//vector的临界区对象
 	std::vector<LPSOCKET_CONTEXT>	m_vectClientConetxt;						//存储当前所有连接客户端的Context信息

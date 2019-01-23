@@ -93,8 +93,10 @@ void CIOCPSocket::parseNetBuffer(LPIO_CONTEXT pIoContext, MESSAGE_HEAD& stuHead,
 	LPMESSAGE_CONTENT lpMessageContent = LPMESSAGE_CONTENT(PBYTE(pIoContext->m_WsaBuf.buf + sizeof(MESSAGE_HEAD)));
 	stuData.nRequest = lpMessageContent->nRequest;
 	stuData.nDataLen = lpMessageContent->nDataLen;
-	auto pDataPtr = (char*)(PBYTE(pIoContext->m_WsaBuf.buf + sizeof(MESSAGE_HEAD)+sizeof(MESSAGE_CONTENT)));
-	stuData.pDataPtr = pDataPtr;
+	//char* pDataPtr = (char*)(PBYTE(pIoContext->m_WsaBuf.buf + sizeof(MESSAGE_HEAD)+sizeof(MESSAGE_CONTENT)));
+	//stuData.pDataPtr = pDataPtr;
+	//stuData.pDataPtr = (char*)(PBYTE(pIoContext->m_WsaBuf.buf + sizeof(MESSAGE_HEAD)+sizeof(MESSAGE_CONTENT)));
+	strcpy((char*)stuData.pDataPtr, (char*)(PBYTE(pIoContext->m_WsaBuf.buf + sizeof(MESSAGE_HEAD)+sizeof(MESSAGE_CONTENT))));
 
 	printf("%d:%d:%d---%d:%d:%s\n", stuHead.hSocket, stuHead.lSession, stuHead.lTokenID, stuData.nRequest, stuData.nDataLen, stuData.pDataPtr);
 }

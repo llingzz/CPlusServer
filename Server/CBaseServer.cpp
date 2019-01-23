@@ -27,8 +27,13 @@ CBaseServer::~CBaseServer()
 
 BOOL CBaseServer::OnWorkerStart(CIOCPModule* pCIocpModule)
 {
+	::CoInitialize(NULL);
 	pCIocpModule->m_hShutdownEvent = ::CreateEvent(NULL, FALSE, FALSE, NULL);
 	m_hShutdownEvent = ::CreateEvent(NULL, FALSE, FALSE, NULL);
+
+	CreateMessageDealerThread();
+	::WaitForSingleObject(m_hMessageDealerEvent, INFINITE);
+	CloseHandle(m_hMessageDealerEvent);
 
 	return TRUE;
 }
@@ -44,6 +49,7 @@ void CBaseServer::OnWorkerExit()
 	SAFE_RELEASE_HANDLE(m_IocpModule->m_hIocp);
 	SAFE_DELETE(m_pListenContext);
 
+	::CoUninitialize();
 	printf("The Class Members had All Released...\n");
 }
 
@@ -221,11 +227,18 @@ void CBaseServer::UnloadSocketLib()
 	WSACleanup();
 }
 
+BOOL CBaseServer::CreateMessageDealerThread()
+{
+	m_hMessgaeDealerHandle = (HANDLE)_beginthreadex(NULL, 0, messageDealerFunc, this, 0, &m_uiMessageDealerThreadId);
+	return TRUE;
+}
+
 unsigned int CBaseServer::heartbeatFunc(LPVOID pParam)
 {
 	CBaseServer* pServer = (CBaseServer*)pParam;
 
-	while (1)
+	//while (TRUE)
+	while (WAIT_OBJECT_0 != (::WaitForSingleObject(pServer->m_hShutdownEvent, 0)))
 	{
 		if (0 == (pServer->m_nTick % 10))
 		{
@@ -246,6 +259,31 @@ unsigned int CBaseServer::heartbeatFunc(LPVOID pParam)
 		}
 		Sleep(TIME_TICK);
 		pServer->m_nTick++;
+	}
+
+	return 0;
+}
+unsigned int CBaseServer::messageDealerFunc(LPVOID pParam)
+{
+	CBaseServer* pServer = (CBaseServer*)pParam;
+	MSG msg;
+	PeekMessage(&msg, NULL, WM_USER, WM_USER, PM_NOREMOVE);
+	if (!SetEvent(pServer->m_hMessageDealerEvent))
+	{
+		//强制该线程创建一个线程内消息队列，防止第一个PostThreadMessage投递失败
+		return 1;
+	}
+	while (WAIT_OBJECT_0 != (::WaitForSingleObject(pServer->m_hShutdownEvent, 0)))
+	{
+		switch (msg.message)
+		{
+		case WM_DATA_TO_SEND:
+			break;
+		case WM_DATA_TO_RECV:
+			break;
+		default:
+			break;
+		}
 	}
 
 	return 0;

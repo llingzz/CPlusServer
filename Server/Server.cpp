@@ -36,7 +36,7 @@ void testTask::Run()
 
 int _tmain(int argc, _TCHAR* argv[])
 {
-#if 1
+#if 0
 	CBaseServer GameServer = CBaseServer();
 	//GetPrivateProfileString(_T("Server"), _T("ip"), _T(""), GameServer.m_szIp, _countof(GameServer.m_szIp), GameServer._getIniFile());
 	if (FALSE == GameServer.Initialize())
@@ -56,9 +56,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		//ch = 'Q';
 
 	} while ('Q' != ch);
-#elif 0	//测试日志输出
-	
-#elif 0	//测试内存池
+#elif 0	//测试内存管理
 	char test[] = "test";
 	MESSAGE_HEAD stuMessageHead = { 0 };
 	stuMessageHead.hSocket = 100;
@@ -83,8 +81,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	myDataPool.Write((PBYTE)&stuMessageContent, sizeof(MESSAGE_CONTENT));
 	LPMESSAGE_HEAD lpHead = LPMESSAGE_HEAD(PBYTE(myDataPool.c_Bytes()));
 	LPMESSAGE_CONTENT lpContent = LPMESSAGE_CONTENT(PBYTE(myDataPool.c_Bytes() + sizeof(MESSAGE_HEAD)));
-
-	getchar();
+#elif 0 //测试内存池
 #elif 0	//测试Redis连接
 	CRedisManager Manager("127.0.0.1",6379,0);
 	Manager.ConnectServer("127.0.0.1", 6379, "8767626", 0);
@@ -132,6 +129,41 @@ int _tmain(int argc, _TCHAR* argv[])
 	timer.SetTimer(10000, TestTimer, NULL, CancelTest);
 	//TimeWheelNode* pNode = timer.SetTimer(10000, TestTimer, NULL, CancelTest);
 	//timer.CancelTimer(pNode->nTimerID);
+#elif 0 //测试消息队列
+	MQ_Manager* pManager = new MQ_Manager;
+	MQ_Publisher* pPublisher = new MQ_Publisher;
+	MQ_Subscriber* pSubscriber1 = new MQ_Subscriber;
+	MQ_Subscriber* pSubscriber2 = new MQ_Subscriber;
+
+	MQ_MESSAGE stuMQMessage = { 0 };
+	stuMQMessage.nMessageID = 1000;
+	stuMQMessage.nMessageType = 1;
+	strcpy(stuMQMessage.szMessageContent, "hello world!");
+
+	pPublisher->PublishMQ(pManager, stuMQMessage.nMessageID, &stuMQMessage);
+	pSubscriber1->SubscribMQ(pManager, stuMQMessage.nMessageID);
+	pSubscriber2->SubscribMQ(pManager, stuMQMessage.nMessageID);
+	pSubscriber2->UnSubscribMQ(pManager, stuMQMessage.nMessageID);
+
+	MQ_MESSAGE stuMQMessage1 = { 0 };
+	stuMQMessage1.nMessageID = 2000;
+	stuMQMessage1.nMessageType = 2;
+	strcpy(stuMQMessage1.szMessageContent, "hello world! hello world!");
+	pPublisher->PublishMQ(pManager, stuMQMessage1.nMessageID, &stuMQMessage1);
+	pSubscriber2->SubscribMQ(pManager, stuMQMessage1.nMessageID);
+#elif 1	//测试自定义日志
+	//CLog::GetInstance()->SetLogLevel(enINFO)->WriteLogFile("INFO %d", 1);
+	LOG_INFO("INFO %d", 1);
+	LOG_INFO("INFO %d", 2);
+	LOG_INFO("INFO %d", 3);
+	LOG_INFO("INFO %d", 4);
+	//LOG_INFO("INFO %d %s", 5, "hello world!");
+	//CLog::GetInstance()->SetLogLevel(enDEBUG)->WriteLogFile("DEBUG %d", 2);
+	//LOG_DEBUG("DEBUG %d %s", 1, "DEBUG");
+	//CLog::GetInstance()->SetLogLevel(enWARN)->WriteLogFile("WARN %d", 3);
+	//CLog::GetInstance()->SetLogLevel(enTRACE)->WriteLogFile("TRACE %d", 4);
+	//CLog::GetInstance()->SetLogLevel(enERROR)->WriteLogFile("ERROR %d", 5);
+	//CLog::GetInstance()->SetLogLevel(enFATAL)->WriteLogFile("FATAL %d", 6);
 #else
 	cout << "Nothing Is Done!" << endl;
 #endif

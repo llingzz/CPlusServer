@@ -93,6 +93,9 @@
     <ClInclude Include="threadpool\ThreadPool.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="threadpool\MessageQueue.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -147,6 +150,9 @@
       <Filter>redis</Filter>
     </ClCompile>
     <ClCompile Include="threadpool\ThreadPool.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="threadpool\MessageQueue.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

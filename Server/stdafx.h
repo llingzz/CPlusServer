@@ -18,6 +18,7 @@
 #include <string>
 #include <queue>
 #include <map>
+#include <deque>
 using namespace std;
 
 
@@ -27,6 +28,7 @@ using namespace std;
 #include "include/Utilities.h"
 #include "include/Functions.h"
 #include "threadpool/ThreadPool.h"
+#include "threadpool/MessageQueue.h"
 #include "iocp/IocpModule.h"
 #include "iocp/IocpSocket.h"
 #include "iocp/IocpAccept.h"

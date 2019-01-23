@@ -45,7 +45,6 @@ BOOL CIOCPAccept::PostAccept(LPIO_CONTEXT pIoContext, CBaseServer* pServer)
 
 	return TRUE;
 }
-
 BOOL CIOCPAccept::DoAccept(LPSOCKET_CONTEXT pSocketContext, LPIO_CONTEXT pIoContext, CBaseServer* pServer)
 {
 	sockaddr_in* siClientAddr = NULL;
