@@ -4,7 +4,7 @@
 #include <vector>
 #include <limits.h>
 #include <stddef.h>
-#include <assert.h>
+#include <fstream>
 
 /* 单例模板 */
 template<typename T>
@@ -315,101 +315,38 @@ public:
 private:
 	std::vector<BYTE> m_vecBuffer;
 };
-///*内存池，参考（https://github.com/cacay/MemoryPool）*/
-//template <typename T, size_t BlockSize = 4096>
-//class MemoryPool
-//{
-//public:
-//	/* Member types */
-//	typedef T               value_type;
-//	typedef T*              pointer;
-//	typedef T&              reference;
-//	typedef const T*        const_pointer;
-//	typedef const T&        const_reference;
-//	typedef size_t          size_type;
-//	typedef ptrdiff_t       difference_type;
-//
-//	template <typename U> struct rebind {
-//		typedef MemoryPool<U> other;
-//	};
-//
-//	/* Member functions */
-//	MemoryPool() throw();
-//	MemoryPool(const MemoryPool& memoryPool) throw();
-//	template <class U> MemoryPool(const MemoryPool<U>& memoryPool) throw();
-//
-//	~MemoryPool() throw();
-//
-//	pointer address(reference x) const throw();
-//	const_pointer address(const_reference x) const throw();
-//
-//	// Can only allocate one object at a time. n and hint are ignored
-//	pointer allocate(size_type n = 1, const_pointer hint = 0);
-//	void deallocate(pointer p, size_type n = 1);
-//
-//	size_type max_size() const throw();
-//
-//	void construct(pointer p, const_reference val);
-//	void destroy(pointer p);
-//
-//	pointer newElement(const_reference val);
-//	void deleteElement(pointer p);
-//
-//private:
-//	union Slot_ {
-//		value_type element;
-//		Slot_* next;
-//	};
-//
-//	typedef char* data_pointer_;
-//	typedef Slot_ slot_type_;
-//	typedef Slot_* slot_pointer_;
-//
-//	slot_pointer_ currentBlock_;
-//	slot_pointer_ currentSlot_;
-//	slot_pointer_ lastSlot_;
-//	slot_pointer_ freeSlots_;
-//
-//	size_type padPointer(data_pointer_ p, size_type align) const throw();
-//	void allocateBlock();
-//	/*
-//	static_assert(BlockSize >= 2 * sizeof(slot_type_), "BlockSize too small.");
-//	*/
-//};
 
 //自定义日志记录类
-typedef enum enLogLevel{
-	enDEFAULT = 0,
-	enINFO,
-	enDEBUG,
-	enWARN,
-	enTRACE,
-	enERROR,
-	enFATAL,
-};
 class CLog : public CSingle<CLog>{
 public:
 	CLog()
 	{
 		m_nLogLevel = enDEFAULT;
 		m_pFp = NULL;
+		ZeroMemory(m_szFilePath, MAX_PATH);
 		ZeroMemory(m_szFileName, MAX_PATH);
+		ZeroMemory(m_szLogRrefix, BASE_DATA_BUF_SIZE);
+		ZeroMemory(m_szLogContent, BASE_DATA_BUF_SIZE);
 	}
 	~CLog()
 	{
 		m_nLogLevel = enDEFAULT;
 		fclose(m_pFp);
 		m_pFp = NULL;
+		ZeroMemory(m_szFilePath, MAX_PATH);
 		ZeroMemory(m_szFileName, MAX_PATH);
+		ZeroMemory(m_szLogRrefix, BASE_DATA_BUF_SIZE);
+		ZeroMemory(m_szLogContent, BASE_DATA_BUF_SIZE);
 	}
 
 public:
 	void WriteLogFile(const char* fmt, ...)
 	{
+		CAutoLock lock(&m_csLock);
 		GetLocalTime(&m_sysTime);
-		GetCurrentTime();
+		GetCurrentTimeRrefix();
 		GetCurrentLevel(m_nLogLevel);
-		GetFileName();
+		GetFilePathAndName();
 
 		va_list ap;
 		va_start(ap, fmt);
@@ -420,18 +357,65 @@ public:
 		szRes.append(m_szLogContent);
 		strcpy_s(m_szLogContent, szRes.length() + 1, szRes.c_str());
 
-		CAutoLock lock(&m_csLock);
 		if (NULL == m_pFp)
 		{
-			fopen_s(&m_pFp, m_szFileName, "a+");
-			assert(NULL != m_pFp);
+			fopen_s(&m_pFp, m_szFilePath, "a+");
+			while (NULL == m_pFp)
+			{
+				fopen_s(&m_pFp, m_szFilePath, "a+");//确保文件能被打开，日志能被写入
+			}
 		}
 		fwrite(m_szLogContent, strlen(m_szLogContent), 1, m_pFp);
 		fwrite("\n", 1, 1, m_pFp);
 		fflush(m_pFp);
 		ftell(m_pFp);
+
 		fclose(m_pFp);
 		m_pFp = NULL;
+	}
+	void WriteLogConsole(const char* fmt, ...)
+	{
+		CAutoLock lock(&m_csLock);
+		GetLocalTime(&m_sysTime);
+		GetCurrentTimeRrefix();
+		GetCurrentLevel(m_nLogLevel);
+
+		va_list ap;
+		va_start(ap, fmt);
+		vsprintf_s(m_szLogContent, fmt, ap);
+		va_end(ap);
+
+		string szRes = m_szLogRrefix;
+		szRes.append(m_szLogContent);
+		strcpy_s(m_szLogContent, szRes.length() + 1, szRes.c_str());
+		printf_s("%s\n", m_szLogContent);
+	}
+	void WriteLogFileEx(const char* fmt, ...)
+	{
+		CAutoLock lock(&m_csLock);
+		GetLocalTime(&m_sysTime);
+		GetCurrentTimeRrefix();
+		GetCurrentLevel(m_nLogLevel);
+		GetFilePathAndName();
+
+		va_list ap;
+		va_start(ap, fmt);
+		vsprintf_s(m_szLogContent, fmt, ap);
+		va_end(ap);
+
+		string szRes = m_szLogRrefix;
+		szRes.append(m_szLogContent);
+		strcpy_s(m_szLogContent, szRes.length() + 1, szRes.c_str());
+
+		ofstream log;
+		log.open(m_szFilePath, ios::out | ios::app);
+		while (!log.is_open())
+		{
+			log.open(m_szFilePath, ios::out | ios::app);
+		}
+		log.write(m_szLogContent, strlen(m_szLogContent));
+		log.write("\n", 1);
+		log.close();
 	}
 	CLog* SetLogLevel(int nLevel)
 	{
@@ -440,18 +424,15 @@ public:
 	}
 
 private:
-	void GetCurrentTime()
+	void GetCurrentTimeRrefix()
 	{
-		sprintf_s(m_szLogRrefix, "[%04d-%02d-%02d %02d:%02d:%02d:%4d]", m_sysTime.wYear, m_sysTime.wMonth, m_sysTime.wDay, m_sysTime.wHour, m_sysTime.wMinute, m_sysTime.wSecond, m_sysTime.wMilliseconds);
+		sprintf_s(m_szLogRrefix, "[%04d-%02d-%02d %02d:%02d:%02d:%3d]", m_sysTime.wYear, m_sysTime.wMonth, m_sysTime.wDay, m_sysTime.wHour, m_sysTime.wMinute, m_sysTime.wSecond, m_sysTime.wMilliseconds);
 	}
 	void GetCurrentLevel(int nLevel)
 	{
 		char szLoglevel[8];
 		switch (nLevel)
 		{
-		case enINFO:
-			strcpy(szLoglevel, "INFO");
-			break;
 		case enDEBUG:
 			strcpy(szLoglevel, "DEBUG");
 			break;
@@ -467,30 +448,37 @@ private:
 		case enFATAL:
 			strcpy(szLoglevel, "FATAL");
 			break;
+		case enINFO:
 		default:
 			strcpy(szLoglevel, "INFO");
 			break;
 		}
 		sprintf_s(m_szLogRrefix, "%s[%s]:", m_szLogRrefix, szLoglevel);
 	}
-	void GetFileName()
+	void GetFilePathAndName()
 	{
-		sprintf_s(m_szFileName, "%s%s%04d%02d%02d.log", SERVER_NAME, "_", m_sysTime.wYear, m_sysTime.wMonth, m_sysTime.wDay);
+		sprintf_s(m_szFileName, "\\%s%04d%02d%02d.log", SERVER_NAME, m_sysTime.wYear, m_sysTime.wMonth, m_sysTime.wDay);
+
+		TCHAR szFilePath[MAX_PATH];
+		GetModuleFileName(GetModuleHandle(NULL), szFilePath, sizeof(szFilePath));
+		TcharToChar(szFilePath, m_szFilePath);
+		const char* ptr = strrchr(m_szFilePath, '\\');
+
+		string strStr = m_szFilePath;
+		auto nIndex = strStr.find(ptr);
+		string strRes = strStr.substr(0, nIndex);
+		strRes.append(m_szFileName);
+
+		strcpy_s(m_szFilePath, strRes.length() + 1, strRes.c_str());
 	}
 
 private:
 	int         m_nLogLevel;
 	FILE*		m_pFp;
 	CCritSec	m_csLock;
+	char		m_szFilePath[MAX_PATH];
 	char		m_szFileName[MAX_PATH];
 	char		m_szLogRrefix[BASE_DATA_BUF_SIZE];
 	char		m_szLogContent[BASE_DATA_BUF_SIZE];
 	SYSTEMTIME	m_sysTime;
 };
-//日志快捷宏
-#define		LOG_INFO(fmt, ...)		CLog::GetInstance()->SetLogLevel(enINFO)->WriteLogFile(fmt, __VA_ARGS__)
-#define		LOG_DEBUG(fmt, ...)		CLog::GetInstance()->SetLogLevel(enDEBUG)->WriteLogFile(fmt, __VA_ARGS__)
-#define		LOG_WARN(fmt, ...)		CLog::GetInstance()->SetLogLevel(enWARN)->WriteLogFile(fmt, __VA_ARGS__)
-#define		LOG_TARCE(fmt, ...)		CLog::GetInstance()->SetLogLevel(enTRACE)->WriteLogFile(fmt, __VA_ARGS__)
-#define		LOG_ERROR(fmt, ...)		CLog::GetInstance()->SetLogLevel(enERROR)->WriteLogFile(fmt, __VA_ARGS__)
-#define		LOG_FATAL(fmt, ...)		CLog::GetInstance()->SetLogLevel(enFATAL)->WriteLogFile(fmt, __VA_ARGS__)

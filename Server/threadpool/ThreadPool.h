@@ -24,7 +24,6 @@ private:
 //CTask的前置声明
 class CTask;
 
-
 //----------------------------------------------------------------
 //结构体  ：priority_queue_cmp
 //用途    ：排序任务队列的排序参数
@@ -46,14 +45,13 @@ struct priority_queue_cmp
 
 //根据任务优先级进行排序的任务队列
 typedef std::priority_queue<CTask*, std::vector<CTask*>, priority_queue_cmp<CTask*>> TaskQueue;
-
 //----------------------------------------------------------------
 //类  ：CTask
 //用途：任务基类
 //工作线程中调用的任务为该类的子类，需要重载基类的Run()方法。
 //在线程内进行销毁。
 //----------------------------------------------------------------
-class CTask
+interface CTask
 {
 public:
 	explicit CTask(int nRriority = 0);	//构造函数，explicit关键词修饰，抑制内置类型隐式转换
@@ -71,7 +69,6 @@ private:
 	int	m_nThreadID;					//执行当前任务线程ID
 	int m_nPriority;					//任务优先级，优先级越大越先执行
 };
-
 
 //----------------------------------------------------------------
 //类  ：CTaskQueue
@@ -110,7 +107,6 @@ typedef enum enPriority
 	enHighPriority,		//高优先级
 };
 
-
 //----------------------------------------------------------------
 //枚举  ：enThreadState
 //用途  ：线程运行状态枚举
@@ -124,10 +120,8 @@ typedef enum enThreadState
 	enFinishTS,			//结束状态
 };
 
-
 //CThread的前置声明
 class CThread;
-
 
 //----------------------------------------------------------------
 //类  ：CRunnable
@@ -152,7 +146,6 @@ private:
 	CThread* m_pThread;										//当前线程
 	CEvent m_eEvent;										//事件对象
 };
-
 
 //----------------------------------------------------------------
 //类  ：CThread
@@ -192,10 +185,8 @@ private:
 
 static unsigned int __stdcall ThreadFunc(void* lpParam);//线程函数
 
-
 //CThreadPool的前置声明
 class CThreadPool;
-
 
 //----------------------------------------------------------------
 //类  ：CWorkerThread
@@ -226,7 +217,6 @@ private:
 	bool m_bIsExit;												//线程是否退出
 };
 
-
 //----------------------------------------------------------------
 //类  ：CAllocThread
 //用途：分配线程
@@ -248,7 +238,6 @@ private:
 	bool m_bIsExit;												//线程离开标志
 };
 
-
 //----------------------------------------------------------------
 //类  ：CCleanThread
 //用途：清理线程
@@ -269,7 +258,6 @@ private:
 
 	bool m_bIsExit;												//线程离开标志
 };
-
 
 //----------------------------------------------------------------
 //类  ：CWorkerThreadList
@@ -295,7 +283,6 @@ private:
 	std::vector<CWorkerThread*> m_vtWorkerThreadList;			//工作线程列表
 	CEvent m_eEvent;											//事件对象
 };
-
 
 //----------------------------------------------------------------
 //类  ：CThreadPool

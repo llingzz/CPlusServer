@@ -56,7 +56,7 @@ BOOL CClient::InitialiazeConnection()
 		m_phRecvThreads[i] = (HANDLE)::_beginthreadex(0, 0, RecvThread, (void*)&m_pWorkerThreadParam[i], 0, &nThreadID);
 #if 1
 		//m_phSendThreads[i] = (HANDLE)::_beginthreadex(0, 0, SendThread, (void*)&m_pWorkerThreadParam[i], 0, &nThreadID);
-		char test[] = "test";
+		char test[] = "Hello Server!";
 		while (1)
 		{
 			SendData(m_pWorkerThreadParam[i].sSocket, 10000, test, sizeof(test));

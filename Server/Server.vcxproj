@@ -82,6 +82,7 @@
     <ClInclude Include="CBaseServer.h" />
     <ClInclude Include="common\CommonDef.h" />
     <ClInclude Include="common\CommonReq.h" />
+    <ClInclude Include="CPlusServer.h" />
     <ClInclude Include="db\DBCommon.h" />
     <ClInclude Include="db\DBOperator.h" />
     <ClInclude Include="db\mysql\MySQLManager.h" />
@@ -121,6 +122,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="CBaseServer.cpp" />
+    <ClCompile Include="CPlusServer.cpp" />
     <ClCompile Include="db\DBOperator.cpp" />
     <ClCompile Include="db\mysql\MySQLManager.cpp" />
     <ClCompile Include="iocp\IocpAccept.cpp" />

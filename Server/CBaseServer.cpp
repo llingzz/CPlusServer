@@ -31,9 +31,9 @@ BOOL CBaseServer::OnWorkerStart(CIOCPModule* pCIocpModule)
 	pCIocpModule->m_hShutdownEvent = ::CreateEvent(NULL, FALSE, FALSE, NULL);
 	m_hShutdownEvent = ::CreateEvent(NULL, FALSE, FALSE, NULL);
 
-	CreateMessageDealerThread();
+	/*CreateMessageDealerThread();
 	::WaitForSingleObject(m_hMessageDealerEvent, INFINITE);
-	CloseHandle(m_hMessageDealerEvent);
+	CloseHandle(m_hMessageDealerEvent);*/
 
 	return TRUE;
 }
@@ -50,7 +50,7 @@ void CBaseServer::OnWorkerExit()
 	SAFE_DELETE(m_pListenContext);
 
 	::CoUninitialize();
-	printf("The Class Members had All Released...\n");
+	FILE_INFOS("the class members had all released...");
 }
 
 BOOL CBaseServer::Initialize()
@@ -60,15 +60,13 @@ BOOL CBaseServer::Initialize()
 	CAutoLock lock(&m_csVectClientContext);
 	if (FALSE == LoadSocketLib())
 	{
-		printf("CBaseServer::LoadSocketLib Initialize Failed...\n");
+		return FALSE;
 	}
-	printf("CBaseServer::LoadSocketLib Initialize Successful...\n");
 
 	if (FALSE == m_IocpModule->Initialize())
 	{
-		printf("CIOCPModule Initialize Failed...\n");
+		return FALSE;
 	}
-	printf("CBaseServer::LoadSocketLib Initialize Successful...\n");
 
 	//AcceptEx和GetAcceptExSockAddr的GUID，用于导出函数指针
 	GUID GuidAcceptEx = WSAID_ACCEPTEX;
@@ -83,18 +81,16 @@ BOOL CBaseServer::Initialize()
 	m_pListenContext->m_Socket = ::WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
 	if (INVALID_SOCKET == m_pListenContext->m_Socket)
 	{
-		printf("CBaseServer::Initialize Initialize the WSASocket Failed...\n");
+		FILE_ERROR("%s initialize the WSASocket failed...", __FUNCTION__);
 		return FALSE;
 	}
-	printf("CBaseServer::Initialize Initialize the WSASocket Successful...\n");
 
 	if (NULL == ::CreateIoCompletionPort((HANDLE)m_pListenContext->m_Socket, (HANDLE)m_IocpModule->m_hIocp, (DWORD)m_pListenContext, 0))
 	{
-		printf("Bind the ClientContext to IoCompletionPort Failed...\n");
+		FILE_ERROR("%s bind the clientcontext to iocompletionport failed...", __FUNCTION__);
 		SAFE_RELEASE_SOCKET(m_pListenContext->m_Socket);
 		return FALSE;
 	}
-	printf("Bind the ClientContext to IoCompletionPort Successful...\n");
 
 	memset(&socketAddr, 0, sizeof(sockaddr_in));
 	socketAddr.sin_family = AF_INET;
@@ -106,18 +102,16 @@ BOOL CBaseServer::Initialize()
 	auto nRet = ::bind(m_pListenContext->m_Socket, (struct sockaddr*)&socketAddr, sizeof(socketAddr));
 	if (SOCKET_ERROR == nRet)
 	{
-		printf("Bind SOCKET Failed...\n");
+		FILE_ERROR("bind socket failed...");
 		return FALSE;
 	}
-	printf("Bind SOCKET Successful...\n");
 
 	nRet = ::listen(m_pListenContext->m_Socket, SOMAXCONN);
 	if (SOCKET_ERROR == nRet)
 	{
-		printf("Listen SOCKET Failed...\n");
+		FILE_ERROR("listen socket failed...");
 		return FALSE;
 	}
-	printf("Listen SOCKET Successful...\n");
 
 	DWORD dwBytes = 0;
 	//使用AcceptEx函数，获取函数指针
@@ -132,7 +126,7 @@ BOOL CBaseServer::Initialize()
 		NULL,
 		NULL))
 	{
-		printf("WSAIoctl do not get the AcceptEx Pointer...\n");
+		FILE_ERROR("WSAIoctl do not get the AcceptEx pointer...");
 		return FALSE;
 	}
 
@@ -148,7 +142,7 @@ BOOL CBaseServer::Initialize()
 		NULL,
 		NULL))
 	{
-		printf("WSAIoctl do not get the GetAcceptExSockAddr Pointer...\n");
+		FILE_ERROR("WSAIoctl do not get the GetAcceptExSockAddr pointer...");
 		return FALSE;
 	}
 
@@ -184,7 +178,7 @@ BOOL CBaseServer::Initialize()
 
 			return FALSE;
 		}
-		printf("Posted AcceptEx Request...\n");
+		FILE_INFOS("posted AcceptEx request...");
 	}
 
 	return TRUE;
@@ -205,7 +199,7 @@ void CBaseServer::Shutdown()
 
 		this->OnWorkerExit();
 
-		printf("The Server has Shutdown...Stopped Listening...\n");
+		FILE_INFOS("server shutdown!!!");
 	}
 }
 
@@ -215,10 +209,10 @@ BOOL CBaseServer::LoadSocketLib()
 	auto nRet = ::WSAStartup(MAKEWORD(2, 2), &wsaData);
 	if (NO_ERROR != nRet)
 	{
-		printf("Initialized the Socket Libs Failed...\n");
+		FILE_ERROR("initialized the socketlibs failed...");
 		return FALSE;
 	}
-	printf("Initialized the Socket Libs Successful...\n");
+	FILE_INFOS("initialized the socketlibs successful...");
 
 	return TRUE;
 }
@@ -242,7 +236,8 @@ unsigned int CBaseServer::heartbeatFunc(LPVOID pParam)
 	{
 		if (0 == (pServer->m_nTick % 10))
 		{
-			printf("Ticks:%d Detect Pluse...Current Connections:%d\n", pServer->m_nTick, pServer->getConnections());
+			CONSOLE_INFOS("ticks:%4d detected pluse...current connections:%d", pServer->m_nTick, pServer->getConnections());
+			FILE_INFOS("ticks:%4d detected pluse...current connections:%d", pServer->m_nTick, pServer->getConnections());
 		}
 		unsigned int uiSlot = pServer->m_nTick % HEART_BEAT_WHEEL_SLOT;
 		CAutoLock lock(&pServer->m_csHeartBeatWheel);
@@ -267,10 +262,9 @@ unsigned int CBaseServer::messageDealerFunc(LPVOID pParam)
 {
 	CBaseServer* pServer = (CBaseServer*)pParam;
 	MSG msg;
-	PeekMessage(&msg, NULL, WM_USER, WM_USER, PM_NOREMOVE);
+	PeekMessage(&msg, NULL, WM_USER, WM_USER, PM_NOREMOVE);//强制该线程创建一个线程内消息队列，防止第一个PostThreadMessage投递失败
 	if (!SetEvent(pServer->m_hMessageDealerEvent))
 	{
-		//强制该线程创建一个线程内消息队列，防止第一个PostThreadMessage投递失败
 		return 1;
 	}
 	while (WAIT_OBJECT_0 != (::WaitForSingleObject(pServer->m_hShutdownEvent, 0)))
@@ -329,6 +323,9 @@ BOOL CBaseServer::SendRequest(SOCKET client, LPMESSAGE_HEAD lpMessageHead, LPMES
 	myDataPool.Write((PBYTE)lpMessageHead, sizeof(MESSAGE_HEAD));
 	myDataPool.Write((PBYTE)lpMessageContent, sizeof(MESSAGE_CONTENT));
 
+	pIoContext->m_WsaBuf.len = myDataPool.GetLength();
+	memcpy(pIoContext->m_WsaBuf.buf, myDataPool.c_Bytes(), myDataPool.GetLength());
+
 	LPSOCKET_CONTEXT pSocketContext = getClientSocketContext(client);
 	if (!pSocketContext)
 	{
@@ -350,6 +347,9 @@ BOOL CBaseServer::SendResponse(SOCKET client, LPMESSAGE_HEAD lpMessageHead, LPME
 	myDataPool.Write((PBYTE)lpMessageHead, sizeof(MESSAGE_HEAD));
 	myDataPool.Write((PBYTE)lpMessageContent, sizeof(MESSAGE_CONTENT));
 
+	pIoContext->m_WsaBuf.len = myDataPool.GetLength();
+	memcpy(pIoContext->m_WsaBuf.buf, myDataPool.c_Bytes(), myDataPool.GetLength());
+
 	LPSOCKET_CONTEXT pSocketContext = getClientSocketContext(client);
 	if (!pSocketContext)
 	{
@@ -366,8 +366,9 @@ void CBaseServer::OnRequest(void* pParam1, void* pParam2)
 
 	switch (lpMessageContent->nRequest)
 	{
-	case PROTOCOL_HEART_PLUSE:
-		printf("Client:%d Socket:%d Send Pluse Request...\n", lpMessageHead->lTokenID, lpMessageHead->hSocket);
+	case PROTOCOL_CLIENT_PLUSE:
+		CONSOLE_INFOS("client:%d socket:%d send pluse request...", lpMessageHead->lTokenID, lpMessageHead->hSocket);
+		FILE_INFOS("client:%d socket:%d send pluse request...", lpMessageHead->lTokenID, lpMessageHead->hSocket);
 		OnHeartPluse(lpMessageHead, lpMessageContent);
 		break;
 	default:

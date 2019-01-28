@@ -6,7 +6,7 @@ CEvent::CEvent()
 
 	if (INVALID_HANDLE_VALUE == m_hEvent)
 	{
-		printf("事件创建失败!\n");
+		CONSOLE_ERROR("事件创建失败!");
 	}
 }
 CEvent::~CEvent()
@@ -17,15 +17,13 @@ CEvent::~CEvent()
 	}
 	m_hEvent = INVALID_HANDLE_VALUE;
 }
-
 void CEvent::Wait()
 {
 	if (WAIT_FAILED == WaitForSingleObject(m_hEvent, INFINITE))
 	{
-		printf("事件等待失败!\n");
+		CONSOLE_ERROR("事件等待失败!");
 	}
 }
-
 int CEvent::Wait(int nTimeOut)
 {
 	int nRet = 0;
@@ -36,29 +34,27 @@ int CEvent::Wait(int nTimeOut)
 	dwStatus = WaitForSingleObject(m_hEvent, dwMillicSec);
 	if (WAIT_TIMEOUT == dwStatus)
 	{
-		printf("事件等待超时!\n");
+		CONSOLE_ERROR("事件等待超时!");
 	}
 	if (WAIT_FAILED == dwStatus)
 	{
-		printf("事件等待失败!\n");
+		CONSOLE_ERROR("事件等待失败!");
 	}
 
 	return nRet;
 }
-
 void CEvent::Reset()
 {
 	if (!ResetEvent(m_hEvent))
 	{
-		printf("事件信号重置失败!\n");
+		CONSOLE_ERROR("事件信号重置失败!");
 	}
 }
-
 void CEvent::Notify()
 {
 	if (!SetEvent(m_hEvent))
 	{
-		printf("事件信号设置失败!\n");
+		CONSOLE_ERROR("事件信号设置失败!");
 	}
 }
 
@@ -71,32 +67,26 @@ CTask::~CTask()
 {
 
 }
-
 void CTask::TimeOut()
 {
-	printf("没有线程处理当前任务，超时\n");
+	CONSOLE_INFOS("没有线程处理当前任务，超时!");
 }
-
 void CTask::SetPriority(int nPriority)
 {
 	m_nPriority = nPriority;
 }
-
 int CTask::GetPriority()
 {
 	return m_nPriority;
 }
-
 void CTask::SetThreadID(int nThreadID)
 {
 	m_nThreadID = nThreadID;
 }
-
 int CTask::GetThreadID()
 {
 	return m_nThreadID;
 }
-
 
 CTaskQueue::CTaskQueue()
 {
@@ -106,7 +96,6 @@ CTaskQueue::~CTaskQueue()
 {
 
 }
-
 CTask* CTaskQueue::PopTask()
 {
 	CTask* pTask = NULL;
@@ -120,7 +109,6 @@ CTask* CTaskQueue::PopTask()
 
 	return pTask;
 }
-
 void CTaskQueue::PushTask(CTask* pTask)
 {
 	CAutoLock lock(&m_csTaskQueue);
@@ -128,23 +116,19 @@ void CTaskQueue::PushTask(CTask* pTask)
 
 	NotifyTask();
 }
-
 void CTaskQueue::WaitTask()
 {
 	m_eEvent.Wait();
 }
-
 void CTaskQueue::NotifyTask()
 {
 	m_eEvent.Notify();
 }
-
 bool CTaskQueue::Empty()
 {
 	CAutoLock lock(&m_csTaskQueue);
 	return m_tqTaskQueue.empty();
 }
-
 int CTaskQueue::Size()
 {
 	CAutoLock lock(&m_csTaskQueue);
@@ -160,22 +144,18 @@ CRunnable::~CRunnable()
 {
 
 }
-
 void CRunnable::SetThread(CThread* pThread)
 {
 	m_pThread = pThread;
 }
-
 CThread* CRunnable::GetThread()
 {
 	return m_pThread;
 }
-
 int CRunnable::Wait(int nTimeOut)
 {
 	return m_eEvent.Wait(nTimeOut);
 }
-
 void CRunnable::Notify()
 {
 	m_eEvent.Notify();
@@ -218,7 +198,6 @@ CThread::~CThread()
 	m_hThreadHandle = INVALID_HANDLE_VALUE;
 	m_uiThreadID = -1;
 }
-
 unsigned int __stdcall ThreadFunc(void* lpParam)
 {
 	CThread* pThread = (CThread*)lpParam;
@@ -229,7 +208,6 @@ unsigned int __stdcall ThreadFunc(void* lpParam)
 
 	return 0;
 }
-
 void CThread::Start(bool bSuspend /* = false */)
 {
 	if (bSuspend)
@@ -247,19 +225,16 @@ void CThread::Start(bool bSuspend /* = false */)
 
 	}
 }
-
 void CThread::Excute()
 {
 	m_enThreadState = enRunningTS;
 	m_pRunnable->Run();
 }
-
 void CThread::Join()
 {
 	WaitForSingleObject(m_hThreadHandle, INFINITE);
 	m_enThreadState = enFinishTS;
 }
-
 void CThread::Suspend()
 {
 	if (m_enThreadState == enSuspendTS || m_enThreadState == enBlockedTS)
@@ -270,7 +245,6 @@ void CThread::Suspend()
 	SuspendThread(m_hThreadHandle);
 	m_enThreadState = enSuspendTS;
 }
-
 void CThread::Resume()
 {
 	if (m_enThreadState == enSuspendTS)
@@ -279,49 +253,40 @@ void CThread::Resume()
 		m_enThreadState = enRunningTS;
 	}
 }
-
 void CThread::Stop()
 {
 	m_enThreadState = enFinishTS;
 }
-
 void CThread::Wait()
 {
 	m_enThreadState = enBlockedTS;
 	m_eEvent.Wait();
 	m_enThreadState = enRunningTS;
 }
-
 void CThread::Notify()
 {
 	m_eEvent.Notify();
 }
-
 void CThread::SetThreadState(enThreadState enThreadSte)
 {
 	m_enThreadState = enThreadSte;
 }
-
 enThreadState CThread::GetThreadState()
 {
 	return m_enThreadState;
 }
-
 void CThread::SetPriority(enPriority enThreadPriority)
 {
 	SetThreadPriority(m_hThreadHandle, enThreadPriority);
 }
-
 enPriority CThread::GetPriority()
 {
 	return (enPriority)GetThreadPriority(m_hThreadHandle);
 }
-
 void CThread::SetThreadID(unsigned int uiThreadID)
 {
 	m_uiThreadID = uiThreadID;
 }
-
 unsigned int CThread::GetThreadID()
 {
 	return m_uiThreadID;
@@ -345,7 +310,6 @@ CWorkerThread::~CWorkerThread()
 	}
 	m_pThread = NULL;
 }
-
 void CWorkerThread::SetTask(CTask* pTask, void* pData)
 {
 	m_pTask = pTask;
@@ -353,12 +317,10 @@ void CWorkerThread::SetTask(CTask* pTask, void* pData)
 	//给工作线程设定任务之后，通知CWorkerThread::Run()开始执行任务
 	m_eEvent.Notify();
 }
-
 CThread* CWorkerThread::GetThread()
 {
 	return m_pThread;
 }
-
 void CWorkerThread::Run()
 {
 	while (true)
@@ -385,7 +347,6 @@ void CWorkerThread::Run()
 		m_eEvent.Reset();
 	}
 }
-
 void CWorkerThread::Suspend()
 {
 	if (m_pThread)
@@ -393,7 +354,6 @@ void CWorkerThread::Suspend()
 		m_pThread->Suspend();
 	}
 }
-
 void CWorkerThread::Join()
 {
 	if (m_pThread)
@@ -401,7 +361,6 @@ void CWorkerThread::Join()
 		m_pThread->Join();
 	}
 }
-
 void CWorkerThread::Resume()
 {
 	if (m_pThread)
@@ -409,7 +368,6 @@ void CWorkerThread::Resume()
 		m_pThread->Resume();
 	}
 }
-
 void CWorkerThread::Stop()
 {
 	//调用Stop()时，通知CWorkerThread::Run()当前线程需要停止，退出线程
@@ -436,7 +394,6 @@ CAllocThread::~CAllocThread()
 	}
 	m_pThread = NULL;
 }
-
 void CAllocThread::Run()
 {
 	while (true)
@@ -457,13 +414,11 @@ void CAllocThread::Run()
 		}
 	}
 }
-
 void CAllocThread::Stop()
 {
 	m_bIsExit = true;
 	m_pThreadPool->Notify();
 }
-
 
 CCleanThread::CCleanThread(CThreadPool* pThreadPool /* = NULL */)
 {
@@ -483,7 +438,6 @@ CCleanThread::~CCleanThread()
 	}
 	m_pThread = NULL;
 }
-
 void CCleanThread::Run()
 {
 	while (true)
@@ -496,13 +450,11 @@ void CCleanThread::Run()
 		m_pThreadPool->CleanWorkers();
 	}
 }
-
 void CCleanThread::Stop()
 {
 	m_bIsExit = true;
 	Notify();
 }
-
 
 CWorkerThreadList::CWorkerThreadList()
 {
@@ -512,7 +464,6 @@ CWorkerThreadList::~CWorkerThreadList()
 {
 
 }
-
 void CWorkerThreadList::PushWorkerThread(CWorkerThread* pWorkerThread)
 {
 	if (pWorkerThread)
@@ -520,7 +471,6 @@ void CWorkerThreadList::PushWorkerThread(CWorkerThread* pWorkerThread)
 		m_vtWorkerThreadList.push_back(pWorkerThread);
 	}
 }
-
 CWorkerThread* CWorkerThreadList::PopWorkerThread()
 {
 	CWorkerThread* pWorkerThread = NULL;
@@ -532,7 +482,6 @@ CWorkerThread* CWorkerThreadList::PopWorkerThread()
 
 	return pWorkerThread;
 }
-
 void CWorkerThreadList::EraseWorkerThread(CWorkerThread* pWorkerThread)
 {
 	if (pWorkerThread)
@@ -545,27 +494,22 @@ void CWorkerThreadList::EraseWorkerThread(CWorkerThread* pWorkerThread)
 		}
 	}
 }
-
 void CWorkerThreadList::Clear()
 {
 	m_vtWorkerThreadList.clear();
 }
-
 void CWorkerThreadList::Wait()
 {
 	m_eEvent.Wait();
 }
-
 int CWorkerThreadList::Wait(int nSecs)
 {
 	return m_eEvent.Wait(nSecs);
 }
-
 void CWorkerThreadList::Notify()
 {
 	m_eEvent.Notify();
 }
-
 
 CThreadPool::CThreadPool(int nMaxThreads /* = 20 */, int nMaxIdleThreads /* = 10 */, int nMinIdleThreads /* = 5 */)
 {
@@ -590,7 +534,6 @@ CThreadPool::~CThreadPool()
 	}
 	m_pCleanThread = NULL;
 }
-
 void CThreadPool::Start()
 {
 	m_pAllcoThread = new CAllocThread(this);
@@ -603,7 +546,6 @@ void CThreadPool::Start()
 
 	m_bIsExit = false;
 }
-
 void CThreadPool::Stop()
 {
 	//线程池停止
@@ -660,7 +602,6 @@ void CThreadPool::Stop()
 		pTask = NULL;
 	}
 }
-
 void CThreadPool::CreateWorker(int nWorkerNums)
 {
 	CAutoLock lock(&m_csMutex);
@@ -676,10 +617,9 @@ void CThreadPool::CreateWorker(int nWorkerNums)
 		m_ltIdleList.PushWorkerThread(pWorkerThread);
 
 		m_nCurrentThreads++;
-		printf("创建一个线程,当前线程数%d\n", m_nCurrentThreads);
+		CONSOLE_INFOS("创建一个线程,当前线程数%d", m_nCurrentThreads);
 	}
 }
-
 void CThreadPool::CleanWorkers()
 {
 	int nWorkersToFree = m_nCurrentThreads - m_nBusyThreads;
@@ -705,7 +645,6 @@ void CThreadPool::CleanWorkers()
 		}
 	}
 }
-
 void CThreadPool::MoveToIdleList(CWorkerThread* pWorkerThread)
 {
 	CAutoLock lock(&m_csMutex);
@@ -714,22 +653,19 @@ void CThreadPool::MoveToIdleList(CWorkerThread* pWorkerThread)
 
 	m_ltIdleList.Notify();
 }
-
 void CThreadPool::PushTask(CTask* pTask, void* pData)
 {
 	m_tqTaskQueue.PushTask(pTask);
 }
-
 CTask* CThreadPool::PopTask()
 {
 	return m_tqTaskQueue.PopTask();
 }
-
 void CThreadPool::HandleTask(CTask* pTask, void* pData)
 {
 	if (0 == m_nCurrentThreads)
 	{
-		printf("当前线程池中线程数为0,确认正确开启线程池!\n");
+		CONSOLE_INFOS("当前线程池中线程数为0,确认正确开启线程池!");
 	}
 	if (pTask)
 	{
@@ -739,7 +675,7 @@ void CThreadPool::HandleTask(CTask* pTask, void* pData)
 			if (m_nCurrentThreads < m_nMaxThreads)
 			{
 				CAutoLock lock(&m_csMutex);
-				printf("当前线程池忙碌,需要添加额外线程!\n");
+				CONSOLE_INFOS("当前线程池忙碌,需要添加额外线程!");
 				int nAllow = m_nMaxThreads - m_nCurrentThreads;
 				int nWorkersToCreate = nAllow > m_nMinIdleThreads ? m_nMinIdleThreads : nAllow;
 				CreateWorker(nWorkersToCreate);
@@ -747,7 +683,7 @@ void CThreadPool::HandleTask(CTask* pTask, void* pData)
 			else
 			{
 				//当前线程池已经达到最多线程数，开始等待空余线程
-				printf("当前线程池已经达到最多线程数,正在等待空余线程!\n");
+				CONSOLE_INFOS("当前线程池已经达到最多线程数,正在等待空余线程!");
 				//这里如果一直等待的话，会阻塞在这里，在线程空余的时候应该进行通知。
 				m_ltIdleList.Wait();
 			}
@@ -763,12 +699,10 @@ void CThreadPool::HandleTask(CTask* pTask, void* pData)
 		}
 	}
 }
-
 void CThreadPool::WaitForTask()
 {
 	m_tqTaskQueue.WaitTask();
 }
-
 void CThreadPool::Notify()
 {
 	m_tqTaskQueue.NotifyTask();

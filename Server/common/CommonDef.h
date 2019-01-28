@@ -19,13 +19,14 @@
 #define				TIME_TICK								1000				//1000ms
 #define				IP_LENGTH								16					//IP字符串长度
 #define				MAX_DISCONNECTION_TIMES					3					//心跳包最大缺失次数
+#define				MAX_PLUSE_INTEVAL						30					//心跳接受最大间隔数
 
 //自定义内核消息
 #define				WM_DATA_TO_SEND							(WM_USER + 1000)
 #define				WM_DATA_TO_RECV							(WM_USER + 1001)
 
 //协议号
-#define				PROTOCOL_HEART_PLUSE					10000				//心跳
+#define				PROTOCOL_CLIENT_PLUSE					10000				//心跳
 
 //完成端口上投递IO操作类型
 typedef enum tagOPE_TYPE{
@@ -41,6 +42,11 @@ typedef struct _tagWORKER_THREAD{
 	CIOCPModule*	pCIOCPModule;
 	int				nThreadId;
 }WORKER_THREAD, *LPWORKER_THREAD;
+class CPlusServer;
+typedef struct _tagWORKER_THREAD_PARAM{
+	CPlusServer*	pServer;
+	int				nThreadId;
+}WORKER_THREAD_PARAM, *LPWORKER_THREAD_PARAM;
 
 //IO操作上下文（每一个重叠操作的参数）
 typedef struct _tagIO_CONTEXT{
@@ -122,3 +128,8 @@ typedef struct _tagHEART_BEAT_DETECT{
 	unsigned int	m_uiDisconnectCount;				//心跳包缺收次数
 	unsigned int	m_uiLastTick;
 }HEART_BEAT_DETECT, *LPHEART_BEAT_DETECT;
+
+typedef struct _tagPLUSE_PACKAGE{
+	SOCKET			m_Socket;
+	time_t			m_tLastTick;
+}PLUSE_PACKAGE, *LPPLUSE_PACKAGE;

@@ -12,8 +12,7 @@ void CancelTest(void* pParam)
 	std::cout << "Canceled!" << std::endl;
 }
 
-class testTask : public CTask
-{
+class testTask : public CTask{
 public:
 	testTask(int nPriority = 0, int nTest = 0) :CTask(nPriority)
 	{
@@ -24,24 +23,24 @@ public:
 
 	}
 
-	virtual void Run();
+	virtual void Run(); 
 
 private:
 	int m_nTest;
 };
 void testTask::Run()
 {
-	printf("执行任务%d\n", m_nTest);
+	CONSOLE_INFOS("执行任务%d", m_nTest);
 }
 
 int _tmain(int argc, _TCHAR* argv[])
 {
-#if 0
+#if 0	//服务器启动
 	CBaseServer GameServer = CBaseServer();
-	//GetPrivateProfileString(_T("Server"), _T("ip"), _T(""), GameServer.m_szIp, _countof(GameServer.m_szIp), GameServer._getIniFile());
 	if (FALSE == GameServer.Initialize())
 	{
-		//LOG_ERROR("Iniatialize Failed...");
+		FILE_ERROR("%s iniatialize failed...", __FUNCTION__);
+		CONSOLE_ERROR("%s iniatialize failed...", __FUNCTION__);
 	}
 	char ch;
 	do
@@ -49,12 +48,19 @@ int _tmain(int argc, _TCHAR* argv[])
 		ch = 'A';
 		ch = toupper(ch);
 
-		if ('S' == ch)
-		{
-			//GameServer.TestSend();
-		}
-		//ch = 'Q';
-
+	} while ('Q' != ch);
+#elif 1
+	CPlusServer GameServer = CPlusServer();
+	if (FALSE == GameServer.Initialize())
+	{
+		FILE_ERROR("%s gameserver iniatialize failed...", __FUNCTION__);
+		CONSOLE_ERROR("%s gameserver iniatialize failed...", __FUNCTION__);
+	}
+	char ch;
+	do
+	{
+		ch = 'A';
+		ch = toupper(ch);
 	} while ('Q' != ch);
 #elif 0	//测试内存管理
 	char test[] = "test";
@@ -113,7 +119,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	}
 	//提交事务操作
 	MYSQL_CommitTrans(connection);
-#elif 0	//测试线程池
+#elif 1	//测试线程池
 	CThreadPool* pThreadPool = new CThreadPool(20, 10, 5);
 	pThreadPool->Start();
 
@@ -151,19 +157,20 @@ int _tmain(int argc, _TCHAR* argv[])
 	strcpy(stuMQMessage1.szMessageContent, "hello world! hello world!");
 	pPublisher->PublishMQ(pManager, stuMQMessage1.nMessageID, &stuMQMessage1);
 	pSubscriber2->SubscribMQ(pManager, stuMQMessage1.nMessageID);
-#elif 1	//测试自定义日志
+#elif 0	//测试自定义日志
 	//CLog::GetInstance()->SetLogLevel(enINFO)->WriteLogFile("INFO %d", 1);
-	LOG_INFO("INFO %d", 1);
-	LOG_INFO("INFO %d", 2);
-	LOG_INFO("INFO %d", 3);
-	LOG_INFO("INFO %d", 4);
-	//LOG_INFO("INFO %d %s", 5, "hello world!");
+	//FILE_INFOS("INFO %d", 1);
+	//FILE_INFOS("INFO %d", 2);
+	//FILE_INFOS("INFO %d", 3);
+	//FILE_INFOS("INFO %d", 4);
+	//LOG_INFO_FILE("INFO %d %s", 5, "hello world!");
 	//CLog::GetInstance()->SetLogLevel(enDEBUG)->WriteLogFile("DEBUG %d", 2);
-	//LOG_DEBUG("DEBUG %d %s", 1, "DEBUG");
+	//LOG_DEBUG_FILE("DEBUG %d %s", 1, "DEBUG");
 	//CLog::GetInstance()->SetLogLevel(enWARN)->WriteLogFile("WARN %d", 3);
 	//CLog::GetInstance()->SetLogLevel(enTRACE)->WriteLogFile("TRACE %d", 4);
 	//CLog::GetInstance()->SetLogLevel(enERROR)->WriteLogFile("ERROR %d", 5);
 	//CLog::GetInstance()->SetLogLevel(enFATAL)->WriteLogFile("FATAL %d", 6);
+	//CLog::GetInstance()->SetLogLevel(enINFO)->WriteLogFileEx("test %d", 1);
 #else
 	cout << "Nothing Is Done!" << endl;
 #endif

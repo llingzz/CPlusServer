@@ -15,7 +15,7 @@ void MQ_Subscriber::UnSubscribMQ(MQ_Manager* pMQManager, int nMessageID)
 }
 void MQ_Subscriber::HandleMessage(LPMQ_MESSAGE pMessage)
 {
-	printf("Deal Message with nMessageID:%d, nMessageType:%d, szMessageContent:%s.\n", pMessage->nMessageID, pMessage->nMessageType, pMessage->szMessageContent);
+	CONSOLE_INFOS("%s Deal Message with nMessageID:%d, nMessageType:%d, szMessageContent:%s...", __FUNCTION__, pMessage->nMessageID, pMessage->nMessageType, pMessage->szMessageContent);
 }
 
 MQ_Manager::MQ_Manager()

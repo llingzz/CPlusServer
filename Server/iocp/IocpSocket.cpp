@@ -24,10 +24,10 @@ BOOL CIOCPSocket::PostRecv(LPIO_CONTEXT pIoContext, CBaseServer* pServer)
 	if (SOCKET_ERROR == nRet && WSA_IO_PENDING != GetLastError())
 	{
 		//如果返回错误而且错误代码并非是Pending的话，请求失败
-		printf("Post the WSARecv Failed...\n");
+		FILE_ERROR("%s post the WSARecv failed...", __FUNCTION__);
 		return FALSE;
 	}
-	printf("Post WSARecv Successful...\n");
+	FILE_INFOS("%s post WSARecv successful...", __FUNCTION__);
 
 	return TRUE;
 }
@@ -37,7 +37,7 @@ void CIOCPSocket::DoRecv(LPIO_CONTEXT pIoContext, CBaseServer* pServer)
 	MESSAGE_HEAD stuHead = { 0 };
 	MESSAGE_CONTENT stuData = { 0 };
 	//printf("Recv Data : %s\n", pIoContext->m_WsaBuf.buf);
-	parseNetBuffer(pIoContext, stuHead, stuData);
+	parseNetBuffer(pIoContext, stuHead, stuData, pServer);
 	pServer->OnRequest(&stuHead, &stuData);
 	//继续投递下一个Recv接受数据
 	PostRecv(pIoContext, pServer);
@@ -56,16 +56,16 @@ BOOL CIOCPSocket::PostSend(LPIO_CONTEXT pIoContext, CBaseServer* pServer)
 	auto nRet = ::WSASend(pIoContext->m_Socket, pWSABuf, 1, &dwBytes, dwFlags, pOverlapped, NULL);
 	if ((SOCKET_ERROR == nRet) && (WSA_IO_PENDING != WSAGetLastError()))
 	{
-		printf("Post the WSASend Failed...\n");
+		FILE_ERROR("%s post the WSASend failed...", __FUNCTION__);
 		return FALSE;
 	}
-	printf("Post the WSASend Success...\n");
+	FILE_INFOS("%s post the WSASend success...", __FUNCTION__);
 
 	return TRUE;
 }
 void CIOCPSocket::DoSend(LPSOCKET_CONTEXT pSocketContext, LPIO_CONTEXT pIoContext, CBaseServer* pServer)
 {
-	printf("Send Data To %s :%d\n", inet_ntoa(pSocketContext->m_SockAddrIn.sin_addr), ntohs(pSocketContext->m_SockAddrIn.sin_port));
+	FILE_INFOS("%s send data to ip:%s port:%d...", __FUNCTION__, inet_ntoa(pSocketContext->m_SockAddrIn.sin_addr), ntohs(pSocketContext->m_SockAddrIn.sin_port));
 	PostSend(pIoContext, pServer);
 }
 
@@ -83,7 +83,7 @@ void CIOCPSocket::OnMessageHandle(OPE_TYPE enOPEType, LPSOCKET_CONTEXT pSocketCo
 	}
 }
 
-void CIOCPSocket::parseNetBuffer(LPIO_CONTEXT pIoContext, MESSAGE_HEAD& stuHead, MESSAGE_CONTENT& stuData)
+void CIOCPSocket::parseNetBuffer(LPIO_CONTEXT pIoContext, MESSAGE_HEAD& stuHead, MESSAGE_CONTENT& stuData, CBaseServer* pServer)
 {
 	//客户端向服务端发送请求时，统一数据格式MESSAGE_HEAD + MESSAGE_CONTENT
 	LPMESSAGE_HEAD lpMessageHead = LPMESSAGE_HEAD(PBYTE(pIoContext->m_WsaBuf.buf));
@@ -93,10 +93,17 @@ void CIOCPSocket::parseNetBuffer(LPIO_CONTEXT pIoContext, MESSAGE_HEAD& stuHead,
 	LPMESSAGE_CONTENT lpMessageContent = LPMESSAGE_CONTENT(PBYTE(pIoContext->m_WsaBuf.buf + sizeof(MESSAGE_HEAD)));
 	stuData.nRequest = lpMessageContent->nRequest;
 	stuData.nDataLen = lpMessageContent->nDataLen;
-	//char* pDataPtr = (char*)(PBYTE(pIoContext->m_WsaBuf.buf + sizeof(MESSAGE_HEAD)+sizeof(MESSAGE_CONTENT)));
-	//stuData.pDataPtr = pDataPtr;
+	/*char* pDataPtr = (char*)(PBYTE(pIoContext->m_WsaBuf.buf + sizeof(MESSAGE_HEAD)+sizeof(MESSAGE_CONTENT)));
+	stuData.pDataPtr = pDataPtr;*/
 	//stuData.pDataPtr = (char*)(PBYTE(pIoContext->m_WsaBuf.buf + sizeof(MESSAGE_HEAD)+sizeof(MESSAGE_CONTENT)));
-	strcpy((char*)stuData.pDataPtr, (char*)(PBYTE(pIoContext->m_WsaBuf.buf + sizeof(MESSAGE_HEAD)+sizeof(MESSAGE_CONTENT))));
+	memcpy(stuData.pDataPtr, (PBYTE(pIoContext->m_WsaBuf.buf + sizeof(MESSAGE_HEAD)+sizeof(MESSAGE_CONTENT))), sizeof(char*));
 
-	printf("%d:%d:%d---%d:%d:%s\n", stuHead.hSocket, stuHead.lSession, stuHead.lTokenID, stuData.nRequest, stuData.nDataLen, stuData.pDataPtr);
+	//通过线程通信将解析后得到的数据投递到CBaseServer上去
+	//if (!PostThreadMessage(pServer->m_uiMessageDealerThreadId, WM_DATA_TO_RECV, (WPARAM)lpMessageHead, (LPARAM)lpMessageContent))
+	//{
+	//	FILE_ERROR("%s postthreadmessage failed...", __FUNCTION__);
+	//	//pServer->OnRequest(lpMessageHead, lpMessageContent);
+	//}
+
+	FILE_INFOS("%s %d:%d:%d---%d:%d:%s...", __FUNCTION__, stuHead.hSocket, stuHead.lSession, stuHead.lTokenID, stuData.nRequest, stuData.nDataLen, stuData.pDataPtr);
 }
