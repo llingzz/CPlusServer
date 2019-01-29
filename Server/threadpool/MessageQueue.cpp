@@ -80,3 +80,74 @@ void MQ_Manager::HandleMessage(MQ_MESSAGE message)
 		SendMessage(iter->second, &message);
 	}
 }
+
+CMessageQueue::CMessageQueue()
+{
+	m_hConsumeEvent = ::CreateEvent(NULL, FALSE, FALSE, NULL);
+	m_hProduceEvent = ::CreateEvent(NULL, FALSE, FALSE, NULL);
+	m_hProduceThread = (HANDLE)::_beginthreadex(NULL, 0, ProduceMessageThread, this, 0, &m_uiProduceThreadID);
+	m_hConsumeThread = (HANDLE)::_beginthreadex(NULL, 0, ConsumeMessageThread, this, 0, &m_uiConsumeThreadID);
+}
+CMessageQueue::~CMessageQueue()
+{
+	::CloseHandle(m_hProduceEvent);
+	::CloseHandle(m_hConsumeEvent);
+	::CloseHandle(m_hProduceThread);
+	::CloseHandle(m_hConsumeThread);
+}
+void CMessageQueue::Produce(LPMQ_MESSAGE pMessage)
+{
+	CAutoLock lock(&m_csProduceLock);
+	m_dequeProduce.push_back(*pMessage);
+}
+void CMessageQueue::Consume(LPMQ_MESSAGE pMessage)
+{
+	m_pCallbackFunc(pMessage);
+}
+unsigned __stdcall CMessageQueue::ProduceMessageThread(LPVOID pParam)
+{
+	CMessageQueue* pMessageQueue = (CMessageQueue*)pParam;
+	while (TRUE)
+	{
+		if (WAIT_OBJECT_0 == ::WaitForSingleObject(pMessageQueue->m_hConsumeEvent, 0))
+		{
+			CAutoLock lock(&pMessageQueue->m_csProduceLock);
+			if (pMessageQueue->m_dequeProduce.empty())
+			{
+				continue;
+			}
+			std::swap(pMessageQueue->m_dequeProduce, pMessageQueue->m_dequeConsume);
+			::SetEvent(pMessageQueue->m_hProduceEvent);
+		}
+	}
+
+	return 0;
+}
+unsigned __stdcall CMessageQueue::ConsumeMessageThread(LPVOID pParam)
+{
+	CMessageQueue* pMessageQueue = (CMessageQueue*)pParam;
+	while (TRUE)
+	{
+		{
+			CAutoLock lock(&pMessageQueue->m_csConsumeLock);
+			if (pMessageQueue->m_dequeConsume.empty())
+			{
+				::SetEvent(pMessageQueue->m_hConsumeEvent);
+				::WaitForSingleObject(pMessageQueue->m_hProduceEvent, INFINITE);
+			}
+			else
+			{
+				MQ_MESSAGE stuMessage = pMessageQueue->m_dequeConsume.front();
+				pMessageQueue->Consume(&stuMessage);
+				pMessageQueue->m_dequeConsume.pop_front();
+			}
+		}
+	}
+
+	return 0;
+}
+CMessageQueue* CMessageQueue::SetCallbackFunc(LPCALLBACK_CONSUME_FUNC pCallbackFunc)
+{
+	m_pCallbackFunc = pCallbackFunc;
+	return this;
+}

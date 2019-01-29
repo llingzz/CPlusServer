@@ -11,7 +11,7 @@
 #define				SAFE_RELEASE_HANDLE(x)					{if(x!=NULL&&x!=INVALID_HANDLE_VALUE){CloseHandle(x);x=NULL;}}
 
 #define				MAX_WORKER_THREADS_PER_PROCESS			2					//每个核心对应几个工作线程
-#define				MAX_MEANWHILE_POST_ACCEPT				1					//同时投递的Accept请求数
+#define				MAX_MEANWHILE_POST_ACCEPT				1000				//同时投递的Accept请求数
 #define				BASE_DATA_BUF_SIZE						(1 * 1024)			//基本数据缓存区大小
 #define				DATA_BUF_SIZE							(8 * 1024)			//数据缓冲区大小
 #define				ACCEPTEX_BYTES_OFFSET_SIZE				16					//AcceptEx字节偏移量

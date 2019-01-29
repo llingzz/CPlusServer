@@ -5,8 +5,9 @@
 #include <limits.h>
 #include <stddef.h>
 #include <fstream>
+#include <assert.h>
 
-/* 单例模板 */
+/*单例模板*/
 template<typename T>
 class CSingle {
 
@@ -315,6 +316,180 @@ public:
 private:
 	std::vector<BYTE> m_vecBuffer;
 };
+/*环形缓冲区 TODO */
+class CRingBuffer{
+public:
+	CRingBuffer(int nSize)
+	{
+		m_nBufferSize = nSize;
+		m_pBuffer = new char[m_nBufferSize];
+		Clear();
+	}
+	~CRingBuffer()
+	{
+		delete[] m_pBuffer;
+		m_pBuffer = NULL;
+		Clear();
+	}
+
+public:
+	void Clear()
+	{
+		m_nWritePos = 0;
+		m_nReadPos = 0;
+		m_nCurrentBufferSize = 0;
+	}
+	bool Full() const
+	{
+		return (m_nCurrentBufferSize == m_nBufferSize);
+	}
+	bool Empty() const
+	{
+		return (0 == m_nCurrentBufferSize);
+	}
+	int	GetLength() const
+	{
+		return m_nCurrentBufferSize;
+	}
+
+	int Write(char* pDataPtr, int nDataLen)
+	{
+		if (nDataLen <= 0 || Full())
+		{
+			return 0;
+		}
+		
+		CAutoLock lock(&m_csLock);
+		if (m_nReadPos == m_nWritePos && 0 == m_nCurrentBufferSize)
+		{
+			int nLeftSize = m_nBufferSize - m_nWritePos;
+			if (nLeftSize >= nDataLen)
+			{
+				memcpy(m_pBuffer + m_nWritePos, pDataPtr, nDataLen);
+				m_nWritePos += nDataLen;
+				m_nCurrentBufferSize += nDataLen;
+				return nDataLen;
+			}
+			else
+			{
+				assert(nLeftSize >= nDataLen);
+				return 0;
+			}
+		}
+		else if (m_nReadPos < m_nWritePos)
+		{
+			int nLeftSize = m_nBufferSize - (m_nWritePos - m_nReadPos);
+			int nBehindSize = m_nBufferSize - m_nWritePos;
+			if (nLeftSize >= nDataLen)
+			{
+				if (nBehindSize >= nDataLen)
+				{
+					memcpy(m_pBuffer + m_nWritePos, pDataPtr, nDataLen);
+					m_nWritePos += nDataLen;
+					m_nCurrentBufferSize += nDataLen;
+					return nDataLen;
+				}
+				else
+				{
+					memcpy(m_pBuffer + m_nWritePos, pDataPtr, nBehindSize);
+					memcpy(m_pBuffer, pDataPtr + nBehindSize, nDataLen - nBehindSize);
+					m_nWritePos = nDataLen - nBehindSize;
+					m_nCurrentBufferSize += nDataLen;
+					return nDataLen;
+				}
+			}
+			else
+			{
+				assert(nLeftSize >= nDataLen);
+				return 0;
+			}
+		}
+		else
+		{
+			int nLeftSize = m_nReadPos - m_nWritePos;
+			if (nLeftSize >= nDataLen)
+			{
+				memcpy(m_pBuffer + m_nWritePos, pDataPtr, nDataLen);
+				m_nWritePos += nDataLen;
+				return nDataLen;
+			}
+			else
+			{
+				assert(nLeftSize >= nDataLen);
+				return 0;
+			}
+		}
+	}
+	int Read(char* pDataPtr, int nDataLen)
+	{
+		if (nDataLen <= 0 || Empty())
+		{
+			return 0;
+		}
+
+		CAutoLock lock(&m_csLock);
+		if (m_nReadPos == m_nWritePos && m_nBufferSize == m_nCurrentBufferSize)
+		{
+			return 0;
+		}
+		else if (m_nReadPos < m_nWritePos)
+		{
+			int nBufferSize = m_nWritePos - m_nReadPos;
+			if (nBufferSize >= nDataLen)
+			{
+				memcpy(pDataPtr, m_pBuffer + m_nReadPos, nDataLen);
+				memset(m_pBuffer + m_nReadPos, 0, nDataLen);
+				m_nReadPos += nDataLen;
+				m_nCurrentBufferSize -= nDataLen;
+				return nDataLen;
+			}
+			else
+			{
+				assert(nBufferSize >= nDataLen);
+				return 0;
+			}
+		}
+		else
+		{
+			int nBufferSize = m_nBufferSize - (m_nReadPos - m_nWritePos);
+			int nBehindSize = m_nBufferSize - m_nReadPos;
+			if (nBufferSize >= nDataLen)
+			{
+				if (nBehindSize >= nDataLen)
+				{
+					memcpy(pDataPtr, m_pBuffer + m_nReadPos, nDataLen);
+					memset(m_pBuffer + m_nReadPos, 0, nDataLen);
+					m_nReadPos += nDataLen;
+					m_nCurrentBufferSize -= nDataLen;
+					return nDataLen;
+				}
+				else
+				{
+					memcpy(pDataPtr, m_pBuffer + m_nReadPos, m_nBufferSize - m_nReadPos);
+					memset(m_pBuffer + m_nReadPos, 0, m_nBufferSize - m_nReadPos);
+					memcpy(pDataPtr + (m_nBufferSize - m_nReadPos), m_pBuffer, nDataLen - (m_nBufferSize - m_nReadPos));
+					memset(m_pBuffer, 0, nDataLen - (m_nBufferSize - m_nReadPos));
+					m_nReadPos = nDataLen - (m_nBufferSize - m_nReadPos);
+					m_nCurrentBufferSize -= nDataLen;
+					return nDataLen;
+				}
+			}
+			else
+			{
+				assert(nBufferSize >= nDataLen);
+				return 0;
+			}
+		}
+	}
+
+private:
+	CCritSec	m_csLock;
+	char*		m_pBuffer;
+	int			m_nWritePos;
+	int			m_nReadPos;
+	int			m_nCurrentBufferSize;
+	int			m_nBufferSize;
+};
 
 //自定义日志记录类
 class CLog : public CSingle<CLog>{
@@ -322,6 +497,7 @@ public:
 	CLog()
 	{
 		m_nLogLevel = enDEFAULT;
+		m_nCurrentIndex = 0;
 		m_pFp = NULL;
 		ZeroMemory(m_szFilePath, MAX_PATH);
 		ZeroMemory(m_szFileName, MAX_PATH);
@@ -368,7 +544,7 @@ public:
 		fwrite(m_szLogContent, strlen(m_szLogContent), 1, m_pFp);
 		fwrite("\n", 1, 1, m_pFp);
 		fflush(m_pFp);
-		ftell(m_pFp);
+		auto nFileSize = ftell(m_pFp);
 
 		fclose(m_pFp);
 		m_pFp = NULL;
@@ -437,7 +613,7 @@ private:
 			strcpy(szLoglevel, "DEBUG");
 			break;
 		case enWARN:
-			strcpy(szLoglevel, "WARN");
+			strcpy(szLoglevel, "WARNS");
 			break;
 		case enTRACE:
 			strcpy(szLoglevel, "TRACE");
@@ -450,7 +626,7 @@ private:
 			break;
 		case enINFO:
 		default:
-			strcpy(szLoglevel, "INFO");
+			strcpy(szLoglevel, "INFOS");
 			break;
 		}
 		sprintf_s(m_szLogRrefix, "%s[%s]:", m_szLogRrefix, szLoglevel);
@@ -474,6 +650,7 @@ private:
 
 private:
 	int         m_nLogLevel;
+	int			m_nCurrentIndex;
 	FILE*		m_pFp;
 	CCritSec	m_csLock;
 	char		m_szFilePath[MAX_PATH];

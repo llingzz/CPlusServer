@@ -51,7 +51,7 @@ typedef std::priority_queue<CTask*, std::vector<CTask*>, priority_queue_cmp<CTas
 //工作线程中调用的任务为该类的子类，需要重载基类的Run()方法。
 //在线程内进行销毁。
 //----------------------------------------------------------------
-interface CTask
+class CTask
 {
 public:
 	explicit CTask(int nRriority = 0);	//构造函数，explicit关键词修饰，抑制内置类型隐式转换

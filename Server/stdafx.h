@@ -40,3 +40,4 @@ using namespace std;
 #include "redis/RedisOperator.h"
 #include "CBaseServer.h"
 #include "CPlusServer.h"
+#include "CPlusClient.h"

@@ -99,6 +99,9 @@
     <ClInclude Include="CPlusServer.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="CPlusClient.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -159,6 +162,9 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="CPlusServer.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="CPlusClient.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

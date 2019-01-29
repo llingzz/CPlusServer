@@ -33,6 +33,12 @@ void testTask::Run()
 	CONSOLE_INFOS("执行任务%d", m_nTest);
 }
 
+BOOL testConsume(LPMQ_MESSAGE pMessage)
+{
+	CONSOLE_INFOS("consumed message with message id:%d ", pMessage->nMessageID);
+	return TRUE;
+}
+
 int _tmain(int argc, _TCHAR* argv[])
 {
 #if 0	//服务器启动
@@ -49,7 +55,8 @@ int _tmain(int argc, _TCHAR* argv[])
 		ch = toupper(ch);
 
 	} while ('Q' != ch);
-#elif 1
+	GameServer.Shutdown();
+#elif 0
 	CPlusServer GameServer = CPlusServer();
 	if (FALSE == GameServer.Initialize())
 	{
@@ -62,6 +69,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		ch = 'A';
 		ch = toupper(ch);
 	} while ('Q' != ch);
+	GameServer.Shutdown();
 #elif 0	//测试内存管理
 	char test[] = "test";
 	MESSAGE_HEAD stuMessageHead = { 0 };
@@ -87,7 +95,18 @@ int _tmain(int argc, _TCHAR* argv[])
 	myDataPool.Write((PBYTE)&stuMessageContent, sizeof(MESSAGE_CONTENT));
 	LPMESSAGE_HEAD lpHead = LPMESSAGE_HEAD(PBYTE(myDataPool.c_Bytes()));
 	LPMESSAGE_CONTENT lpContent = LPMESSAGE_CONTENT(PBYTE(myDataPool.c_Bytes() + sizeof(MESSAGE_HEAD)));
-#elif 0 //测试内存池
+#elif 0 //测试环形缓冲区
+	char writechar[8] = { 0 };
+	memcpy(writechar, "hello", sizeof(writechar));
+	CRingBuffer Buffer(16);
+	Buffer.Write(writechar, sizeof(writechar));
+	char readchar[4] = { 0 };
+	CONSOLE_INFOS("the length is %d", Buffer.GetLength());
+	Buffer.Read(readchar, sizeof(readchar));
+	CONSOLE_INFOS("read data:%s ",readchar);
+	char readchar1[8] = { 0 };
+	Buffer.Read(readchar1, sizeof(readchar1));
+	CONSOLE_INFOS("read data:%s ",readchar);
 #elif 0	//测试Redis连接
 	CRedisManager Manager("127.0.0.1",6379,0);
 	Manager.ConnectServer("127.0.0.1", 6379, "8767626", 0);
@@ -119,7 +138,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	}
 	//提交事务操作
 	MYSQL_CommitTrans(connection);
-#elif 1	//测试线程池
+#elif 0	//测试线程池
 	CThreadPool* pThreadPool = new CThreadPool(20, 10, 5);
 	pThreadPool->Start();
 
@@ -135,7 +154,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	timer.SetTimer(10000, TestTimer, NULL, CancelTest);
 	//TimeWheelNode* pNode = timer.SetTimer(10000, TestTimer, NULL, CancelTest);
 	//timer.CancelTimer(pNode->nTimerID);
-#elif 0 //测试消息队列
+#elif 0 //测试消息队列MQ_Manager
 	MQ_Manager* pManager = new MQ_Manager;
 	MQ_Publisher* pPublisher = new MQ_Publisher;
 	MQ_Subscriber* pSubscriber1 = new MQ_Subscriber;
@@ -157,6 +176,24 @@ int _tmain(int argc, _TCHAR* argv[])
 	strcpy(stuMQMessage1.szMessageContent, "hello world! hello world!");
 	pPublisher->PublishMQ(pManager, stuMQMessage1.nMessageID, &stuMQMessage1);
 	pSubscriber2->SubscribMQ(pManager, stuMQMessage1.nMessageID);
+
+	//delete pManager;
+	//delete pPublisher;
+	//delete pSubscriber1;
+	//delete pSubscriber2;
+#elif 0 //测试消息队列MQ_ManagerEx
+	MQ_MESSAGE stuMQMessage = { 0 };
+	stuMQMessage.nMessageID = 1000;
+	stuMQMessage.nMessageType = 1;
+	strcpy(stuMQMessage.szMessageContent, "hello world!");
+	while (1)
+	{
+		CMessageQueueEx::GetInstance()->SetCallbackFunc(testConsume)->Produce(&stuMQMessage);
+		CONSOLE_INFOS("produced message with message id:%d ", stuMQMessage.nMessageID);
+		stuMQMessage.nMessageID++;
+	}
+	
+	//delete pManager;
 #elif 0	//测试自定义日志
 	//CLog::GetInstance()->SetLogLevel(enINFO)->WriteLogFile("INFO %d", 1);
 	//FILE_INFOS("INFO %d", 1);

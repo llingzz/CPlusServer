@@ -59,3 +59,42 @@ public:
 	CCritSec				m_csMessageDequeLock;
 	CMessageDeque			m_dequeMessage;
 };
+
+/*生产/消费实现消息队列，双缓冲消息队列*/
+typedef BOOL (*LPCALLBACK_CONSUME_FUNC)(LPMQ_MESSAGE pMessage);
+class CMessageQueue{
+public:
+	CMessageQueue();
+	~CMessageQueue();
+
+public:
+	void Produce(LPMQ_MESSAGE pMessage);
+	void Consume(LPMQ_MESSAGE pMessage);
+
+	static unsigned __stdcall ProduceMessageThread(LPVOID pParam);
+	static unsigned __stdcall ConsumeMessageThread(LPVOID pParam);
+
+	CMessageQueue* SetCallbackFunc(LPCALLBACK_CONSUME_FUNC pCallbackFunc);
+
+private:
+	CCritSec		m_csProduceLock;
+	CMessageDeque	m_dequeProduce;
+	unsigned int	m_uiProduceThreadID;
+	HANDLE			m_hProduceThread;
+
+	CCritSec		m_csConsumeLock;
+	CMessageDeque	m_dequeConsume;
+	unsigned int	m_uiConsumeThreadID;
+	HANDLE			m_hConsumeThread;
+	
+	HANDLE			m_hConsumeEvent;
+	HANDLE			m_hProduceEvent;
+
+	LPCALLBACK_CONSUME_FUNC m_pCallbackFunc;
+};
+/*CMessageQueue单例类*/
+class CMessageQueueEx : public CMessageQueue, public CSingle<CMessageQueueEx>{
+public:
+	CMessageQueueEx(){}
+	~CMessageQueueEx(){}
+};

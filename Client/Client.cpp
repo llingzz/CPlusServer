@@ -53,14 +53,14 @@ BOOL CClient::InitialiazeConnection()
 		sprintf(m_pWorkerThreadParam[i].szBuffer, "Thread:%d Data:%s", m_pWorkerThreadParam[i].nThreadId, "Hello Server...");
 		m_pWorkerThreadParam[i].pClient = this;
 
-		m_phRecvThreads[i] = (HANDLE)::_beginthreadex(0, 0, RecvThread, (void*)&m_pWorkerThreadParam[i], 0, &nThreadID);
+		//m_phRecvThreads[i] = (HANDLE)::_beginthreadex(0, 0, RecvThread, (void*)&m_pWorkerThreadParam[i], 0, &nThreadID);
 #if 1
-		//m_phSendThreads[i] = (HANDLE)::_beginthreadex(0, 0, SendThread, (void*)&m_pWorkerThreadParam[i], 0, &nThreadID);
-		char test[] = "Hello Server!";
-		while (1)
+		m_phSendThreads[i] = (HANDLE)::_beginthreadex(0, 0, SendThread, (void*)&m_pWorkerThreadParam[i], 0, &nThreadID);
+		//char test[] = "Hello Server!";
+		//while (1)
 		{
-			SendData(m_pWorkerThreadParam[i].sSocket, 10000, test, sizeof(test));
-			Sleep(5000);
+			//SendData(m_pWorkerThreadParam[i].sSocket, 10000, test, sizeof(test));
+			//Sleep(10000);
 		}
 #else
 		auto nBytesSend = 0;
@@ -119,6 +119,7 @@ BOOL CClient::ConnectToServer(SOCKET* pSocket, char* pServerIP, int nPort)
 		std::cout << "Connect to Server Failed..." << errno << std::endl;
 		return FALSE;
 	}
+	std::cout << "Connect to Server Success..." << errno << std::endl;
 
 	return TRUE;
 }
@@ -210,6 +211,15 @@ unsigned int __stdcall CClient::SendThread(LPVOID lpParam)
 	//EnterCriticalSection(&pClient->m_csSend);
 	auto nBytesSend1 = 0;
 	auto nBytesSend2 = 0;
+
+	while(TRUE)
+	{
+		char test[] = "Hello Server!";
+		pClient->SendData(pParam->sSocket, 10000, test, sizeof(test));
+		//DWORD nTest = (rand() / 100000);
+		//std::cout << test<< ".." << nTest << endl;
+		Sleep(5000);
+	}
 
 #if 0
 	char szSend1[MAX_DATA_BUF_SIZE];

@@ -10,11 +10,19 @@ CPlusServer::CPlusServer()
 	m_pListenContext = NULL;
 	m_pFnAcceptEx = NULL;
 	m_pFnGetAcceptExSockAddr = NULL;
-	m_nTick = 0;
+
+	m_hShutdownEvent = ::CreateEvent(NULL, FALSE, FALSE, NULL);
+	CreateThreads();
 }
 CPlusServer::~CPlusServer()
 {
-
+	SAFE_RELEASE_HANDLE(m_hShutdownEvent);
+	for (auto i = 0; i < m_nWorkerThreads; i++)
+	{
+		SAFE_RELEASE_HANDLE(m_phWorkerThread[i]);
+	}
+	SAFE_RELEASE_HANDLE(m_hIocp);
+	SAFE_DELETE(m_pListenContext);
 }
 
 BOOL CPlusServer::Initialize()
@@ -26,8 +34,6 @@ BOOL CPlusServer::Initialize()
 		FILE_ERROR("%s initialize the socketlibs failed...", __FUNCTION__);
 		return FALSE;
 	}
-
-	CreateThreads();
 
 	if (!InitializeIocp())
 	{
@@ -139,7 +145,7 @@ BOOL CPlusServer::Initialize()
 			FILE_ERROR("%s post accept failed...", __FUNCTION__);
 			return FALSE;
 		}
-		FILE_INFOS("%s posted AcceptEx request...", __FUNCTION__);
+		//FILE_INFOS("%s posted AcceptEx request...", __FUNCTION__);
 	}
 
 	return TRUE;
@@ -147,7 +153,22 @@ BOOL CPlusServer::Initialize()
 
 BOOL CPlusServer::Shutdown()
 {
+	if (NULL != m_pListenContext && INVALID_SOCKET == m_pListenContext->m_Socket)
+	{
+		SetEvent(m_hShutdownEvent);
+		for (auto i = 0; i < m_nWorkerThreads; i++)
+		{
+			PostQueuedCompletionStatus(m_hIocp, 0, (DWORD)NULL, NULL);
+		}
+		WaitForMultipleObjects(m_nWorkerThreads, m_phWorkerThread, TRUE, INFINITE);
+
+		CAutoLock lock(&m_csVectClientContext);
+		std::vector<LPSOCKET_CONTEXT>().swap(m_vectClientConetxt);
+	}
 	WSACleanup();
+
+	FILE_INFOS("%s the server shutdown !!!", __FUNCTION__);
+	CONSOLE_INFOS("%s the server shutdown !!!", __FUNCTION__);
 	return TRUE;
 }
 
@@ -216,8 +237,8 @@ BOOL CPlusServer::OnClientPluse(LPMESSAGE_HEAD lpMessageHead, LPMESSAGE_CONTENT 
 		m_mapClientPluse.insert(std::make_pair(socket, stuPlusePackage));
 	}
 
-	FILE_INFOS("%s on got client pluse data %s...", __FUNCTION__, lpMessageContent->pDataPtr);
-	CONSOLE_INFOS("%s on got client pluse data %s...", __FUNCTION__, lpMessageContent->pDataPtr);
+	FILE_INFOS("%s on got client pluse data [%s]...", __FUNCTION__, lpMessageContent->pDataPtr);
+	CONSOLE_INFOS("%s on got client pluse data [%s]...", __FUNCTION__, lpMessageContent->pDataPtr);
 
 	return TRUE;
 }
@@ -242,7 +263,7 @@ BOOL CPlusServer::PostAccept(LPIO_CONTEXT pIoContext)
 		return FALSE;
 	}
 
-	auto bRet = m_pFnAcceptEx(m_pListenContext->m_Socket, pIoContext->m_Socket, wsaBuf->buf, wsaBuf->len - (sizeof(sockaddr_in)+ACCEPTEX_BYTES_OFFSET_SIZE) * 2,
+	auto bRet = m_pFnAcceptEx(m_pListenContext->m_Socket, pIoContext->m_Socket, wsaBuf->buf, /*wsaBuf->len - (sizeof(sockaddr_in)+ACCEPTEX_BYTES_OFFSET_SIZE) * 2*/0,
 		sizeof(sockaddr_in)+ACCEPTEX_BYTES_OFFSET_SIZE, sizeof(sockaddr_in)+ACCEPTEX_BYTES_OFFSET_SIZE, &dwBytes, pOverlapped);
 	if (FALSE == bRet)
 	{
@@ -253,6 +274,7 @@ BOOL CPlusServer::PostAccept(LPIO_CONTEXT pIoContext)
 		}
 		FILE_INFOS("%s post the AcceptEx request successful with m_pFnAcceptEx == FALSE...", __FUNCTION__);
 	}
+	
 	FILE_INFOS("%s post the AcceptEx request successful...", __FUNCTION__);
 	return TRUE;
 }
@@ -267,7 +289,7 @@ BOOL CPlusServer::DoAccept(LPSOCKET_CONTEXT pSocketContext, LPIO_CONTEXT pIoCont
 
 	m_pFnGetAcceptExSockAddr(
 		pIoContext->m_WsaBuf.buf,
-		pIoContext->m_WsaBuf.len - ((sizeof(sockaddr_in)+ACCEPTEX_BYTES_OFFSET_SIZE) * 2),
+		/*pIoContext->m_WsaBuf.len - ((sizeof(sockaddr_in)+ACCEPTEX_BYTES_OFFSET_SIZE) * 2)*/0,
 		sizeof(sockaddr_in)+ACCEPTEX_BYTES_OFFSET_SIZE,
 		sizeof(sockaddr_in)+ACCEPTEX_BYTES_OFFSET_SIZE,
 		(LPSOCKADDR*)&siServerAddr,
@@ -292,6 +314,7 @@ BOOL CPlusServer::DoAccept(LPSOCKET_CONTEXT pSocketContext, LPIO_CONTEXT pIoCont
 	{
 		FILE_ERROR("%s associate with the iocompletionport failed...", __FUNCTION__);
 		SAFE_DELETE(pNewSocketContext);
+		return FALSE;
 	}
 	//接着新建一个IO_CONTEXT，用于在这个Socket投递第一个IO请求(这里为Recv操作)
 	LPIO_CONTEXT pNewIoContext = new IO_CONTEXT;
@@ -329,7 +352,7 @@ BOOL CPlusServer::DoAccept(LPSOCKET_CONTEXT pSocketContext, LPIO_CONTEXT pIoCont
 		m_vectClientConetxt.push_back(pNewSocketContext);
 	}
 	//客户端第一次投递的消息会从这里得到，在这里解析一下，post到线程消息队列中去
-	HandleMessage(pIoContext, WM_DATA_TO_RECV);
+	//HandleNetMessage(pIoContext, WM_DATA_TO_RECV);
 	//重置ListenSocket上面的IoContext，用于准备投递新的AccepEx
 	ZeroMemory(pIoContext->m_szBuffer, DATA_BUF_SIZE);
 
@@ -350,8 +373,8 @@ BOOL CPlusServer::PostSend(LPIO_CONTEXT pIoContext)
 		FILE_ERROR("%s post the WSASend failed...", __FUNCTION__);
 		return FALSE;
 	}
-	FILE_INFOS("%s post the WSASend success...", __FUNCTION__);
-
+	
+	//FILE_INFOS("%s post the WSASend success...", __FUNCTION__);
 	return TRUE;
 }
 
@@ -377,25 +400,53 @@ BOOL CPlusServer::PostRecv(LPIO_CONTEXT pIoContext)
 		FILE_ERROR("%s post the WSARecv failed...", __FUNCTION__);
 		return FALSE;
 	}
-	FILE_INFOS("%s post WSARecv successful...", __FUNCTION__);
 
+	//FILE_INFOS("%s post WSARecv successful...", __FUNCTION__);
 	return TRUE;
 }
 
 BOOL CPlusServer::DoRecv(LPIO_CONTEXT pIoContext)
 {
-	HandleMessage(pIoContext, WM_DATA_TO_RECV);
+	HandleNetMessage(pIoContext, WM_DATA_TO_RECV);
 	//继续投递下一个Recv接受数据
 	return PostRecv(pIoContext);
 }
 
-BOOL CPlusServer::SendRequest(SOCKET sClient, void* pDataPtr, int nDataLen)
+BOOL CPlusServer::SendRequest(SOCKET sClient, int nRequest, void* pDataPtr, int nDataLen)
 {
+	auto pMessageHead = new MESSAGE_HEAD;
+	pMessageHead->hSocket = sClient;
+	auto pMessageContent = new MESSAGE_CONTENT;
+	pMessageContent->nRequest = nRequest;
+	pMessageContent->nDataLen = nDataLen;
+	pMessageContent->pDataPtr = new BYTE[nDataLen];
+	memcpy(pMessageContent->pDataPtr, pDataPtr, nDataLen);
+	
+	while (!PostThreadMessage(m_uiMessageDealerThreadId, WM_DATA_TO_SEND, (WPARAM)pMessageHead, (LPARAM)pMessageContent))
+	{
+		FILE_ERROR("%s post the thread message failed with nRequestID:%d", __FUNCTION__, pMessageContent->nRequest);
+		return FALSE;
+	}
+
 	return TRUE;
 }
 
-BOOL CPlusServer::SendResponse(SOCKET sClient, void* pDataPtr, int nDataLen)
+BOOL CPlusServer::SendResponse(SOCKET sClient, int nRequest, void* pDataPtr, int nDataLen)
 {
+	auto pMessageHead = new MESSAGE_HEAD;
+	pMessageHead->hSocket = sClient;
+	auto pMessageContent = new MESSAGE_CONTENT;
+	pMessageContent->nRequest = nRequest;
+	pMessageContent->nDataLen = nDataLen;
+	pMessageContent->pDataPtr = new BYTE[nDataLen];
+	memcpy(pMessageContent->pDataPtr, pDataPtr, nDataLen);
+
+	while (!PostThreadMessage(m_uiMessageDealerThreadId, WM_DATA_TO_SEND, (WPARAM)pMessageHead, (LPARAM)pMessageContent))
+	{
+		FILE_ERROR("%s post the thread message failed with nRequestID:%d", __FUNCTION__, pMessageContent->nRequest);
+		return FALSE;
+	}
+
 	return TRUE;
 }
 
@@ -450,70 +501,59 @@ BOOL CPlusServer::OnResponse(void* pParam1, void* pParam2)
 
 	LPMESSAGE_HEAD lpMessageHead = (LPMESSAGE_HEAD)pParam1;
 	LPMESSAGE_CONTENT lpMessageContent = (LPMESSAGE_CONTENT)pParam2;
-
-	auto nTicksCounts = GetTickCount();
-	CONSOLE_INFOS("------ begin the response id %ld  ------", lpMessageContent->nRequest);
-	CONSOLE_INFOS("------ the socket %ld responsing ------", lpMessageHead->hSocket);
-
-	switch (lpMessageContent->nRequest)
+	if (!lpMessageHead || !lpMessageContent)
 	{
-		//TODO:
-	default:
-		break;
+		FILE_ERROR("%s the deserialize params is NULL!!!", __FUNCTION__);
+		return FALSE;
 	}
 
-	CONSOLE_INFOS("------ end the response id %ld cost time %ld ------", lpMessageContent->nRequest, GetTickCount() - nTicksCounts);
+	CBufferEx myDataPool;
+	SerializeNetMessage(myDataPool, lpMessageHead, lpMessageContent, lpMessageContent->pDataPtr, lpMessageContent->nDataLen);
+	SendData(lpMessageHead->hSocket, (void*)myDataPool.c_Bytes(), myDataPool.GetLength());
+	
 	SAFE_DELETE(lpMessageHead);
+	SAFE_DELETE(lpMessageContent->pDataPtr);
 	SAFE_DELETE(lpMessageContent);
 	return TRUE;
 }
 
-BOOL CPlusServer::HandleErrors(LPSOCKET_CONTEXT pSocketContext, const DWORD& dwErr)
+BOOL CPlusServer::SendData(SOCKET sClient, void* pDataPtr, int nDataLen)
 {
-	if (WAIT_TIMEOUT == dwErr)
-	{//超时
-		if ((::send(pSocketContext->m_Socket, "", 0, 0) == -1))
-		{
-			FILE_ERROR("%s the client exit with exception...exit thread with:%d...", __FUNCTION__, dwErr);
-			FILE_ERROR("%s client with ip:%s port:%d disconnected...", __FUNCTION__, inet_ntoa(pSocketContext->m_SockAddrIn.sin_addr), ntohs(pSocketContext->m_SockAddrIn.sin_port));
-			CloseClients(pSocketContext->m_Socket);
-			RemoveSocketContext(pSocketContext);
-			return TRUE;
-		}
-		else
-		{
-			FILE_ERROR("%s the net request is timeout, retrying...", __FUNCTION__);
-			return TRUE;
-		}
-	}
+	LPSOCKET_CONTEXT pSocketContext = new SOCKET_CONTEXT;
+	FindClientSocket(sClient, *pSocketContext);
+	LPIO_CONTEXT pIoContext = new IO_CONTEXT;
+	pIoContext->m_WsaBuf.len = nDataLen;
+	pIoContext->m_WsaBuf.buf = new CHAR[nDataLen];
+	memcpy(pIoContext->m_WsaBuf.buf, pDataPtr, nDataLen);
 
-	else if (ERROR_NETNAME_DELETED == dwErr)
-	{
-		FILE_ERROR("%s the client exit with exception...exit thread with:%d...", __FUNCTION__, dwErr);
-		FILE_ERROR("%s client with ip:%s port:%d disconnected...", __FUNCTION__, inet_ntoa(pSocketContext->m_SockAddrIn.sin_addr), ntohs(pSocketContext->m_SockAddrIn.sin_port));
-		CloseClients(pSocketContext->m_Socket);
-		RemoveSocketContext(pSocketContext);
-		return TRUE;
-	}
-
-	else
-	{
-		FILE_ERROR("%s the client exit with exception...exit thread with:%d...", __FUNCTION__, dwErr);
-		FILE_ERROR("%s client with ip:%s port:%d disconnected...", __FUNCTION__, inet_ntoa(pSocketContext->m_SockAddrIn.sin_addr), ntohs(pSocketContext->m_SockAddrIn.sin_port));
-		CloseClients(pSocketContext->m_Socket);
-		return FALSE;
-	}
+	return DoSend(pSocketContext, pIoContext);
 }
 
-BOOL CPlusServer::HandleMessage(LPIO_CONTEXT pIoContext, int nOpeType)
+BOOL CPlusServer::SimulateRequest(int nRequest, void* pDataPtr, int nDataLen)
+{
+	LPMESSAGE_HEAD pMessageHead = new MESSAGE_HEAD;
+	LPMESSAGE_CONTENT pMessageContent = new MESSAGE_CONTENT;
+	pMessageContent->nRequest = nRequest;
+	pMessageContent->nDataLen = nDataLen;
+	pMessageContent->pDataPtr = new BYTE[nDataLen];
+	memcpy(pMessageContent->pDataPtr, pDataPtr, nDataLen);
+
+	while (!PostThreadMessage(m_uiMessageDealerThreadId, WM_DATA_TO_RECV, (WPARAM)pMessageHead, (LPARAM)pMessageContent))
+	{
+		FILE_ERROR("%s post the thread message failed.", __FUNCTION__);
+		return FALSE;
+	}
+	return TRUE;
+}
+
+BOOL CPlusServer::HandleNetMessage(LPIO_CONTEXT pIoContext, int nOpeType)
 {
 	auto pMessageHead = new MESSAGE_HEAD;
 	auto pMessageContent = new MESSAGE_CONTENT;
 	DeserializeNetMessage(pIoContext, pMessageHead, pMessageContent);
-	if (!PostThreadMessage(m_uiMessageDealerThreadId, nOpeType, (WPARAM)pMessageHead, (LPARAM)pMessageContent))
+	while (!PostThreadMessage(m_uiMessageDealerThreadId, nOpeType, (WPARAM)pMessageHead, (LPARAM)pMessageContent))
 	{
-		FILE_ERROR("%s post the thread message failed with nRequestID:%d", __FUNCTION__, pMessageContent->nRequest);
-		return FALSE;
+		FILE_ERROR("%s post the thread message failed with nRequestID:%d retrying...", __FUNCTION__, pMessageContent->nRequest);
 	}
 
 	return TRUE;
@@ -528,6 +568,17 @@ void CPlusServer::CreateThreads()
 
 void CPlusServer::CloseClients(SOCKET scoSocket)
 {
+	CAutoLock lock(&m_csVectClientContext);
+	std::vector<LPSOCKET_CONTEXT>::iterator iter = m_vectClientConetxt.begin();
+	while (iter != m_vectClientConetxt.end())
+	{
+		if (scoSocket == (*iter)->m_Socket)
+		{
+			m_vectClientConetxt.erase(iter);
+			break;
+		}
+		iter++;
+	}
 	::closesocket(scoSocket);
 }
 
@@ -565,7 +616,7 @@ void CPlusServer::DeserializeNetMessage(LPIO_CONTEXT pIoContext, LPMESSAGE_HEAD 
 	memcpy(pMessageContent->pDataPtr, PBYTE(pIoContext->m_WsaBuf.buf + sizeof(MESSAGE_HEAD)+sizeof(MESSAGE_CONTENT)), pMessageContent->nDataLen);
 }
 
-BOOL CPlusServer::FoundClientSocket(SOCKET sSocket)
+BOOL CPlusServer::FindClientSocket(SOCKET sSocket, SOCKET_CONTEXT& rSocketContext)
 {
 	CAutoLock lock(&m_csVectClientContext);
 	std::vector<LPSOCKET_CONTEXT>::iterator iter = m_vectClientConetxt.begin();
@@ -573,6 +624,10 @@ BOOL CPlusServer::FoundClientSocket(SOCKET sSocket)
 	{
 		if (sSocket == (*iter)->m_Socket)
 		{
+			rSocketContext.m_Socket = (*iter)->m_Socket;
+			rSocketContext.m_SockAddrIn = (*iter)->m_SockAddrIn;
+			rSocketContext.m_vectIoContext = (*iter)->m_vectIoContext;
+
 			return TRUE;
 		}
 		iter++;
@@ -630,27 +685,52 @@ unsigned __stdcall CPlusServer::WorkerThreadFunc(LPVOID lpParam)
 			(PULONG_PTR)&pSocketContext,
 			&pOverlapped,
 			INFINITE);
-		if (NULL == pSocketContext)
-		{
-			FILE_ERROR("%s GetQueuedCompletionStatus got socketcontext is NULL!!!", __FUNCTION__);
-			break;
-		}
 		if (!bRet)
 		{
-			DWORD dwErr = GetLastError();
-			if (!pWorkerThreadParam->pServer->HandleErrors(pSocketContext, dwErr))
+			if (NULL == pSocketContext)
 			{
+				FILE_ERROR("%s GetQueuedCompletionStatus got socketcontext is NULL!!!", __FUNCTION__);
+				continue;
+			}
+			DWORD dwError = GetLastError();
+			if (ERROR_INVALID_HANDLE == dwError)
+			{
+				FILE_ERROR("%s the handle is invalid... dwError:%d ", __FUNCTION__, dwError);
 				break;
 			}
-
+			else if (ERROR_OPERATION_ABORTED == dwError)
+			{
+				FILE_ERROR("%s the I/O operation has been aborted because of either a thread exit or an application request. dwError:%d ", __FUNCTION__, dwError);
+				FILE_ERROR("%s client with ip:%s port:%d disconnected...", __FUNCTION__, inet_ntoa(pSocketContext->m_SockAddrIn.sin_addr), ntohs(pSocketContext->m_SockAddrIn.sin_port));
+				pWorkerThreadParam->pServer->CloseClients(pSocketContext->m_Socket);
+				pWorkerThreadParam->pServer->RemoveSocketContext(pSocketContext);
+			}
+			else if (WAIT_TIMEOUT == dwError)
+			{
+				FILE_ERROR("%s the wait operation timed out... retrying... dwError:%d ", __FUNCTION__, dwError);
+			}
+			else if (ERROR_NETNAME_DELETED == dwError)
+			{
+				FILE_ERROR("%s the specified network name is no longer available. dwError:%d ", __FUNCTION__, dwError);
+				FILE_ERROR("%s client with ip:%s port:%d disconnected...", __FUNCTION__, inet_ntoa(pSocketContext->m_SockAddrIn.sin_addr), ntohs(pSocketContext->m_SockAddrIn.sin_port));
+				pWorkerThreadParam->pServer->CloseClients(pSocketContext->m_Socket);
+				pWorkerThreadParam->pServer->RemoveSocketContext(pSocketContext);
+			}
+			else
+			{
+				FILE_ERROR("%s GetQueuedCompletionStatus failed. GetLastError() returns dwError:%d ", __FUNCTION__, dwError);
+				FILE_ERROR("%s client with ip:%s port:%d disconnected...", __FUNCTION__, inet_ntoa(pSocketContext->m_SockAddrIn.sin_addr), ntohs(pSocketContext->m_SockAddrIn.sin_port));
+				pWorkerThreadParam->pServer->CloseClients(pSocketContext->m_Socket);
+				pWorkerThreadParam->pServer->RemoveSocketContext(pSocketContext);
+			}
 			continue;
 		}
 		else
 		{
 			LPIO_CONTEXT pIoContext = CONTAINING_RECORD(pOverlapped, IO_CONTEXT, m_Overlapped);
 			if (0 == dwByteTransfered && (OPE_RECV == pIoContext->m_OpeType || OPE_SEND == pIoContext->m_OpeType))
-			{//判断客户端是否断开
-				FILE_INFOS("client with ip:%s: port:%d disconnected...", inet_ntoa(pSocketContext->m_SockAddrIn.sin_addr), ntohs(pSocketContext->m_SockAddrIn.sin_port));
+			{
+				FILE_ERROR("client with ip:%s: port:%d disconnected...", inet_ntoa(pSocketContext->m_SockAddrIn.sin_addr), ntohs(pSocketContext->m_SockAddrIn.sin_port));
 				pWorkerThreadParam->pServer->CloseClients(pSocketContext->m_Socket);
 				pWorkerThreadParam->pServer->RemoveSocketContext(pSocketContext);
 				continue;
@@ -660,15 +740,15 @@ unsigned __stdcall CPlusServer::WorkerThreadFunc(LPVOID lpParam)
 				switch ((OPE_TYPE)pIoContext->m_OpeType)
 				{
 				case OPE_ACCEPT:
-					FILE_INFOS("%s OPE_ACCEPT request...", __FUNCTION__);
+					//FILE_INFOS("%s OPE_ACCEPT request...", __FUNCTION__);
 					pWorkerThreadParam->pServer->DoAccept(pSocketContext, pIoContext);
 					break;
 				case OPE_RECV:
-					FILE_INFOS("%s OPE_RECV request...", __FUNCTION__);
+					//FILE_INFOS("%s OPE_RECV request...", __FUNCTION__);
 					pWorkerThreadParam->pServer->DoRecv(pIoContext);
 					break;
 				case OPE_SEND:
-					FILE_INFOS("%s OPE_SEND request...", __FUNCTION__);
+					//FILE_INFOS("%s OPE_SEND request...", __FUNCTION__);
 					break;
 				default:
 					FILE_WARNS("%s pIoContext->m_OpType == default of workerthread params encounter a problem...", __FUNCTION__);
@@ -678,7 +758,7 @@ unsigned __stdcall CPlusServer::WorkerThreadFunc(LPVOID lpParam)
 		}
 	}
 
-	FILE_INFOS("%s workerthread with id:%d exit...", __FUNCTION__, pWorkerThreadParam->nThreadId);
+	FILE_FATAL("%s workerthread with id:%d exit...", __FUNCTION__, pWorkerThreadParam->nThreadId);
 	SAFE_DELETE(lpParam);
 	return 0;
 }
@@ -706,11 +786,13 @@ unsigned __stdcall CPlusServer::DealerThreadFunc(LPVOID lpParam)
 				break;
 			default:
 				FILE_ERROR("%s the message type is invalid...", __FUNCTION__);
+				DispatchMessage(&msg);
 				break;
 			}
 		}
 	}
 
+	FILE_FATAL("%s thread exit...", __FUNCTION__);
 	return 0;
 }
 
@@ -720,6 +802,7 @@ unsigned __stdcall CPlusServer::ClientPluseFunc(LPVOID lpParam)
 	while (WAIT_OBJECT_0 != ::WaitForSingleObject(pServer->m_hClientPluseHandle, 0))
 	{
 		Sleep(MAX_PLUSE_INTEVAL * 1000);
+		auto nTickCounts = GetTickCount();
 		FILE_INFOS("%s start clear clients which lost connection with server beyond 30 seconds...", __FUNCTION__);
 		CAutoLock lock(&pServer->m_csMapClientPluse);
 		std::map<SOCKET, PLUSE_PACKAGE>::iterator iter = pServer->m_mapClientPluse.begin();
@@ -733,8 +816,9 @@ unsigned __stdcall CPlusServer::ClientPluseFunc(LPVOID lpParam)
 			}
 			iter++;
 		}
-		FILE_INFOS("%s clear lost clients done current connections %d ", __FUNCTION__, pServer->m_mapClientPluse.size());
+		FILE_INFOS("%s clear lost clients done current connections %d cost time %ld ", __FUNCTION__, pServer->m_mapClientPluse.size(), GetTickCount() - nTickCounts);
 	}
 
+	FILE_FATAL("%s thread exit...", __FUNCTION__);
 	return 0;
 }

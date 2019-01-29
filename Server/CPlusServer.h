@@ -10,37 +10,38 @@ public:
 	~CPlusServer();
 
 public:
-	BOOL Initialize();
-	BOOL Shutdown();
+	virtual BOOL Initialize();
+	virtual BOOL Shutdown();
 
-	BOOL InitializeIocp();
+	virtual BOOL InitializeIocp();
 
 public:
-	BOOL OnClientPluse(LPMESSAGE_HEAD lpMessageHead, LPMESSAGE_CONTENT lpMessageContent);
+	virtual BOOL OnClientPluse(LPMESSAGE_HEAD lpMessageHead, LPMESSAGE_CONTENT lpMessageContent);
 
 private:
-	BOOL PostAccept(LPIO_CONTEXT pIoContext);
-	BOOL DoAccept(LPSOCKET_CONTEXT pSocketContext, LPIO_CONTEXT pIoContext);
-	BOOL PostSend(LPIO_CONTEXT pIoContext);
-	BOOL DoSend(LPSOCKET_CONTEXT pSocketContext, LPIO_CONTEXT pIoContext);
-	BOOL PostRecv(LPIO_CONTEXT pIoContext);
-	BOOL DoRecv(LPIO_CONTEXT pIoContext);
+	virtual BOOL PostAccept(LPIO_CONTEXT pIoContext);
+	virtual BOOL DoAccept(LPSOCKET_CONTEXT pSocketContext, LPIO_CONTEXT pIoContext);
+	virtual BOOL PostSend(LPIO_CONTEXT pIoContext);
+	virtual BOOL DoSend(LPSOCKET_CONTEXT pSocketContext, LPIO_CONTEXT pIoContext);
+	virtual BOOL PostRecv(LPIO_CONTEXT pIoContext);
+	virtual BOOL DoRecv(LPIO_CONTEXT pIoContext);
 
-	BOOL SendRequest(SOCKET sClient, void* pDataPtr, int nDataLen);
-	BOOL SendResponse(SOCKET sClient, void* pDataPtr, int nDataLen);
-	BOOL OnRequest(void* pParam1, void* pParam2);
-	BOOL OnResponse(void* pParam1, void* pParam2);
+	virtual BOOL SendRequest(SOCKET sClient, int nRequest, void* pDataPtr, int nDataLen);
+	virtual BOOL SendResponse(SOCKET sClient, int nRequest, void* pDataPtr, int nDataLen);
+	virtual BOOL OnRequest(void* pParam1, void* pParam2);
+	virtual BOOL OnResponse(void* pParam1, void* pParam2);
+	virtual BOOL SendData(SOCKET sClient, void* pDataPtr, int nDataLen);
+	virtual BOOL SimulateRequest(int nRequest, void* pDataPtr, int nDataLen);
 	
-	BOOL HandleErrors(LPSOCKET_CONTEXT pSocketContext, const DWORD& dwErr);
-	BOOL HandleMessage(LPIO_CONTEXT pIoContext, int nOpeType);
-	void CreateThreads();
-	void CloseClients(SOCKET scoSocket);
-	void RemoveSocketContext(LPSOCKET_CONTEXT pSocketContext);
-	void SerializeNetMessage(CBufferEx& dataBuffer, LPMESSAGE_HEAD lpMessageHead, LPMESSAGE_CONTENT lpMessageContent, void* pData, int nLen);
-	void DeserializeNetMessage(LPIO_CONTEXT pIoContext, LPMESSAGE_HEAD pMessageHead, LPMESSAGE_CONTENT pMessageContent);
+	virtual BOOL HandleNetMessage(LPIO_CONTEXT pIoContext, int nOpeType);
+	virtual void CreateThreads();
+	virtual void CloseClients(SOCKET scoSocket);
+	virtual void RemoveSocketContext(LPSOCKET_CONTEXT pSocketContext);
+	virtual void SerializeNetMessage(CBufferEx& dataBuffer, LPMESSAGE_HEAD lpMessageHead, LPMESSAGE_CONTENT lpMessageContent, void* pData, int nLen);
+	virtual void DeserializeNetMessage(LPIO_CONTEXT pIoContext, LPMESSAGE_HEAD pMessageHead, LPMESSAGE_CONTENT pMessageContent);
 
-	inline BOOL FoundClientSocket(SOCKET sSocket);
-	inline BOOL FindClientPluse(SOCKET sSocket, PLUSE_PACKAGE& rPlusePackage);
+	virtual inline BOOL FindClientSocket(SOCKET sSocket, SOCKET_CONTEXT& rSocketContext);
+	virtual inline BOOL FindClientPluse(SOCKET sSocket, PLUSE_PACKAGE& rPlusePackage);
 
 	LPCTSTR GetIniFilePath();
 	static unsigned __stdcall WorkerThreadFunc(LPVOID lpParam);
@@ -50,7 +51,6 @@ private:
 public:
 	TCHAR								m_szIp[IP_LENGTH];							//服务器IP
 	int									m_nPort;									//服务器端口
-	unsigned long						m_nTick;									//读秒计数
 	TCHAR								m_szIniFilePath[MAX_PATH];					//服务器ini配置文件路径
 
 	HANDLE								m_hIocp;									//完成端口句柄

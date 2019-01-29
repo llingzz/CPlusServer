@@ -178,7 +178,7 @@ BOOL CBaseServer::Initialize()
 
 			return FALSE;
 		}
-		FILE_INFOS("posted AcceptEx request...");
+		//FILE_INFOS("posted AcceptEx request...");
 	}
 
 	return TRUE;
