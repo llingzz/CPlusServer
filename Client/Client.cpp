@@ -7,7 +7,7 @@
 #define SAFE_RELEASE_HANDLE(x)               {if(x != NULL && x!=INVALID_HANDLE_VALUE){ CloseHandle(x);x = NULL;}}
 #define SAFE_RELEASE(x)                      {if(x != NULL ){delete x;x=NULL;}}
 
-CClient::CClient() :
+CClient::CClient(char* szServerIP, char* szClientIP, int nPort, int nThreads)/* :
 m_szServerIP((char*)DEFAULT_IP),
 m_szClientIP((char*)DEFAULT_IP),
 m_nPort(DEFAULT_PORT),
@@ -15,8 +15,16 @@ m_nThreads(DEFAULT_THREAD),
 m_hConnectionThread(NULL),
 m_phSendThreads(NULL),
 m_pWorkerThreadParam(NULL),
-m_hShutdownEvent(NULL)
+m_hShutdownEvent(NULL)*/
 {
+	m_szServerIP = szServerIP;
+	m_szClientIP = szClientIP;
+	m_nPort = nPort;
+	m_nThreads = nThreads;
+	m_hConnectionThread = NULL;
+	m_phSendThreads = NULL;
+	m_pWorkerThreadParam = NULL;
+	m_hShutdownEvent = NULL;
 }
 
 CClient::~CClient()
@@ -109,7 +117,7 @@ BOOL CClient::ConnectToServer(SOCKET* pSocket, char* pServerIP, int nPort)
 
 	ZeroMemory((char*)&siServerAddr, sizeof(siServerAddr));
 	siServerAddr.sin_family = AF_INET;
-	siServerAddr.sin_addr.S_un.S_addr = inet_addr(DEFAULT_IP);
+	siServerAddr.sin_addr.S_un.S_addr = inet_addr(pServerIP);
 	siServerAddr.sin_port = htons(nPort);
 
 	auto nRet = ::connect(*pSocket, (struct sockaddr*)(&siServerAddr), sizeof(siServerAddr));
@@ -215,10 +223,14 @@ unsigned int __stdcall CClient::SendThread(LPVOID lpParam)
 	while(TRUE)
 	{
 		char test[] = "Hello Server!";
+#if 0
 		pClient->SendData(pParam->sSocket, 10000, test, sizeof(test));
 		//DWORD nTest = (rand() / 100000);
 		//std::cout << test<< ".." << nTest << endl;
-		Sleep(5000);
+#elif 1 // ²âÊÔhttp
+		pClient->GetHttp(pParam->sSocket);
+#endif
+		Sleep(50000);
 	}
 
 #if 0
@@ -314,7 +326,7 @@ unsigned int __stdcall CClient::RecvThread(LPVOID lpParam)
 	return 0;
 }
 
-void CClient::SendData(SOCKET socket, char* pData, int nDataLen)
+void CClient::SendData(SOCKET socket, const char* pData, int nDataLen)
 {
 	auto nBytesSend = ::send(socket, pData, nDataLen, 0);
 	if (SOCKET_ERROR == nBytesSend)
@@ -340,9 +352,24 @@ void CClient::SendData(SOCKET socket, UINT nRequest, void* pData, int nDataLen)
 	SendData(socket, (char*)myDataPool.c_Bytes(), myDataPool.GetLength());
 }
 
+void CClient::GetHttp(SOCKET socket)
+{
+	std::string strGet = "GET /Test/Test1\r\n"
+		" HTTP/1.0\r\n"
+		"Host: http://127.0.0.1:80/web_end/\r\n"
+		"User-Agent: Mozilla/5.0 (Windows; U; Windows NT 5.1; zh-CN; rv:1.9.2.3) Gecko/20100401 Firefox/3.6.3\r\n"
+		"Connection:Keep - Alive\r\n"
+		"Accept-Encoding:gzip, deflate\r\n";
+	SendData(socket, strGet.c_str(), strGet.length());
+}
+
 int _tmain(int argc, _TCHAR* argv[])
 {
+#if 0
 	CClient* pClient = new CClient();
+#elif 1
+	CClient* pClient = new CClient("127.0.0.1", "127.0.0.1", 80, 1);
+#endif
 	pClient->Run();
 
 	getchar();

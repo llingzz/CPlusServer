@@ -195,19 +195,84 @@ int _tmain(int argc, _TCHAR* argv[])
 	
 	//delete pManager;
 #elif 0	//测试自定义日志
-	//CLog::GetInstance()->SetLogLevel(enINFO)->WriteLogFile("INFO %d", 1);
-	//FILE_INFOS("INFO %d", 1);
-	//FILE_INFOS("INFO %d", 2);
-	//FILE_INFOS("INFO %d", 3);
-	//FILE_INFOS("INFO %d", 4);
-	//LOG_INFO_FILE("INFO %d %s", 5, "hello world!");
-	//CLog::GetInstance()->SetLogLevel(enDEBUG)->WriteLogFile("DEBUG %d", 2);
-	//LOG_DEBUG_FILE("DEBUG %d %s", 1, "DEBUG");
-	//CLog::GetInstance()->SetLogLevel(enWARN)->WriteLogFile("WARN %d", 3);
-	//CLog::GetInstance()->SetLogLevel(enTRACE)->WriteLogFile("TRACE %d", 4);
-	//CLog::GetInstance()->SetLogLevel(enERROR)->WriteLogFile("ERROR %d", 5);
-	//CLog::GetInstance()->SetLogLevel(enFATAL)->WriteLogFile("FATAL %d", 6);
-	//CLog::GetInstance()->SetLogLevel(enINFO)->WriteLogFileEx("test %d", 1);
+	CLog::GetInstance()->SetLogLevel(enINFO)->WriteLogFile("INFO %d", 1);
+	FILE_INFOS("INFO %d", 1);
+	FILE_INFOS("INFO %d", 2);
+	FILE_INFOS("INFO %d", 3);
+	FILE_INFOS("INFO %d", 4);
+	LOG_INFO_FILE("INFO %d %s", 5, "hello world!");
+	CLog::GetInstance()->SetLogLevel(enDEBUG)->WriteLogFile("DEBUG %d", 2);
+	LOG_DEBUG_FILE("DEBUG %d %s", 1, "DEBUG");
+	CLog::GetInstance()->SetLogLevel(enWARN)->WriteLogFile("WARN %d", 3);
+	CLog::GetInstance()->SetLogLevel(enTRACE)->WriteLogFile("TRACE %d", 4);
+	CLog::GetInstance()->SetLogLevel(enERROR)->WriteLogFile("ERROR %d", 5);
+	CLog::GetInstance()->SetLogLevel(enFATAL)->WriteLogFile("FATAL %d", 6);
+	CLog::GetInstance()->SetLogLevel(enINFO)->WriteLogFileEx("test %d", 1);
+#elif 0 //测试JsonCpp
+	std::string str = "{\"string\": \"string\",\"int\": 100,\"bool\": \"True\"}";
+	char* strStudent = "{ \"name\" : \"cuishihao\", \"age\" : 28, \"major\" : \"cs\" }";
+	Json::Reader reader;
+	Json::Value root;
+	if (reader.parse(str, root))
+	{
+		std::string strString = root["string"].asString();
+		int intNum = root["int"].asInt();
+
+		CONSOLE_INFOS("string %s int %d", strString.c_str(), intNum);
+	}
+#elif 0 // 测试Rabbitmq
+	CONSOLE_INFOS("start CRabbitMQ_Publisher...");
+	CRabbitMQ_Producer* mq_producer = new CRabbitMQ_Producer();
+	mq_producer->SendMsg("", "", "", "Test");
+#elif 0
+	CONSOLE_INFOS("start CRabbitMQ_Consumer...");
+	CRabbitMQ_Consumer* mq_consumer = new CRabbitMQ_Consumer();
+	mq_consumer->SetRouteFilter("queueTest","routekeyTest.test",NULL,NULL);
+	mq_consumer->StartConsume();
+#elif 1
+	/* 接收超时时间 */
+	timeval timeout;
+	timeout.tv_usec = 0;
+	timeout.tv_sec = 2;
+	/* 变量声明 */
+	//std::string strExchange = "MyExchange";
+	//std::string strRoutekey = "routekeyTest.test.test";
+	//std::string strQueuename = "MyQueue_1";
+	CRabbitMQ *m_objRabbitMQ = new CRabbitMQ("localhost", 5672, "root", "root", 1000000);
+	m_objRabbitMQ->ConnectRabbitServer();
+	/* 声明交换机 */
+	//m_objRabbitMQ->ExchangeDeclare("MyExchange_direct", "direct");
+	//m_objRabbitMQ->ExchangeDeclare("MyExchange_fanout", "fanout");
+	//m_objRabbitMQ->ExchangeDeclare("MyExchange_topic", "topic");
+	/* 声明队列 */
+	//m_objRabbitMQ->QueueDeclare("MyQueue_direct_1");
+	//m_objRabbitMQ->QueueDeclare("MyQueue_fanout_1");
+	//m_objRabbitMQ->QueueDeclare("MyQueue_topic_1");
+	/* 绑定交换机与队列 */
+	//m_objRabbitMQ->QueueBind("MyQueue_direct_1", "MyExchange_direct", "test.direct.*");
+	//m_objRabbitMQ->QueueBind("MyQueue_fanout_1", "MyExchange_fanout", "test.fanout.*");
+	//m_objRabbitMQ->QueueBind("MyQueue_topic_1", "MyExchange_topic", "test.topic.*");
+	m_objRabbitMQ->QueueBind("MyQueue_topic_1", "MyExchange_topic", "test.topic.#");
+	/* 取消交换机与队列的绑定 */
+	//m_objRabbitMQ->QueueUnbind("MyQueue_direct_1", "MyExchange_direct", "test.direct");
+	/* 发布消息 */
+	//m_objRabbitMQ->SendMsg("MyExchange_direct", "MyQueue_direct_1", "test.direct.*", "(SendToExchange:MyQueue_direct_1 SendToQueue:MyExchange_direct) with RouteKey:test.direct");
+	//m_objRabbitMQ->SendMsg("MyExchange_fanout", "MyQueue_fanout_1", "test.fanout.*", "(SendToExchange:MyQueue_fanout_1 SendToQueue:MyExchange_fanout) with RouteKey:test.fanout.*");
+	//m_objRabbitMQ->SendMsg("MyExchange_topic", "MyQueue_topic_1", "test.topic.test", "(SendToExchange:MyExchange_topic SendToQueue:MyExchange_fanout) with RouteKey:test.fanout.test");
+	for (auto i = 0; i < 100; i++)
+	{
+		m_objRabbitMQ->SendMsg("MyExchange_topic", "MyQueue_topic_1", "test.topic.test.test", "(SendToExchange:MyExchange_topic SendToQueue:MyQueue_topic_1) with RouteKey:test.topic.test.test");
+	}
+	/* 接收消息 */
+	//m_objRabbitMQ->RecvMsg("MyQueue_direct_1", &timeout);
+	//m_objRabbitMQ->RecvMsg("MyQueue_fanout_1", &timeout);
+	//m_objRabbitMQ->RecvMsg("MyQueue_topic_1", &timeout);
+	//m_objRabbitMQ->RecvMsg("MyQueue_topic_1", &timeout);
+	/* 线程处理接收消息 */
+	m_objRabbitMQ->AddQueue("MyQueue_topic_1");
+	m_objRabbitMQ->StartConsume();
+#elif 0
+	
 #else
 	cout << "Nothing Is Done!" << endl;
 #endif

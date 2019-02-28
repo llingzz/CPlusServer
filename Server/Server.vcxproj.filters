@@ -33,18 +33,6 @@
     <ClInclude Include="include\Utilities.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="iocp\IocpModule.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="iocp\IocpAccept.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="iocp\IocpSocket.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="CBaseServer.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
     <ClInclude Include="timer\Timer.h">
       <Filter>头文件</Filter>
     </ClInclude>
@@ -102,24 +90,15 @@
     <ClInclude Include="CPlusClient.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="HttpManager.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="Server.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="iocp\IocpModule.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="iocp\IocpAccept.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="iocp\IocpSocket.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="CBaseServer.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="timer\Timer.cpp">
@@ -165,6 +144,9 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="CPlusClient.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="HttpManager.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

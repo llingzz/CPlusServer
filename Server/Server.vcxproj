@@ -41,7 +41,9 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(SolutionDir);$(SolutionDir)/redis/redis</IncludePath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(SolutionDir);$(SolutionDir)/redis/redis;$(SolutionDir)/Server/include/json;$(SolutionDir)/Server/include/librabbitmq</IncludePath>
+    <ReferencePath>$(ReferencePath)</ReferencePath>
+    <LibraryPath>$(SolutionDir)/Server/lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
@@ -52,11 +54,14 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(ProjectDir)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>json_vc71_libmtd.lib;librabbitmqd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -79,7 +84,6 @@
     <Text Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="CBaseServer.h" />
     <ClInclude Include="common\CommonDef.h" />
     <ClInclude Include="common\CommonReq.h" />
     <ClInclude Include="CPlusClient.h" />
@@ -87,11 +91,9 @@
     <ClInclude Include="db\DBCommon.h" />
     <ClInclude Include="db\DBOperator.h" />
     <ClInclude Include="db\mysql\MySQLManager.h" />
+    <ClInclude Include="HttpManager.h" />
     <ClInclude Include="include\Functions.h" />
     <ClInclude Include="include\Utilities.h" />
-    <ClInclude Include="iocp\IocpAccept.h" />
-    <ClInclude Include="iocp\IocpModule.h" />
-    <ClInclude Include="iocp\IocpSocket.h" />
     <ClInclude Include="redis\RedisManager.h" />
     <ClInclude Include="redis\RedisOperator.h" />
     <ClInclude Include="redis\redis\async.h">
@@ -122,14 +124,11 @@
     <ClInclude Include="timer\Timer.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="CBaseServer.cpp" />
     <ClCompile Include="CPlusClient.cpp" />
     <ClCompile Include="CPlusServer.cpp" />
     <ClCompile Include="db\DBOperator.cpp" />
     <ClCompile Include="db\mysql\MySQLManager.cpp" />
-    <ClCompile Include="iocp\IocpAccept.cpp" />
-    <ClCompile Include="iocp\IocpModule.cpp" />
-    <ClCompile Include="iocp\IocpSocket.cpp" />
+    <ClCompile Include="HttpManager.cpp" />
     <ClCompile Include="redis\RedisManager.cpp" />
     <ClCompile Include="redis\RedisOperator.cpp" />
     <ClCompile Include="redis\redis\async.c">

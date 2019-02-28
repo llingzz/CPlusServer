@@ -27,6 +27,7 @@ using namespace std;
 #include "common/CommonReq.h"
 #include "include/Functions.h"
 #include "include/Utilities.h"
+#include "include/json/json.h"
 #include "threadpool/ThreadPool.h"
 #include "threadpool/MessageQueue.h"
 #include "iocp/IocpModule.h"
@@ -41,3 +42,4 @@ using namespace std;
 #include "CBaseServer.h"
 #include "CPlusServer.h"
 #include "CPlusClient.h"
+#include "HttpManager.h"

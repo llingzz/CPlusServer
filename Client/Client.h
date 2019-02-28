@@ -46,7 +46,7 @@ typedef struct _tagMESSAGE_CONTENT{
 class CClient
 {
 public:
-	CClient();
+	CClient(char* szServerIP, char* szClientIP, int nPort, int nThreads);
 	~CClient();
 
 public:
@@ -62,8 +62,11 @@ private:
 	BOOL InitialiazeConnection();
 	BOOL ConnectToServer(SOCKET* pSocket, char* pServerIP, int nPort);
 
-	void SendData(SOCKET socket, char* pData, int nDataLen);
+	void SendData(SOCKET socket, const char* pData, int nDataLen);
 	void SendData(SOCKET socket, UINT nRequest, void* pData, int nDataLen);
+
+	//void PostHttp(std::string data);
+	void GetHttp(SOCKET socket);
 
 	static unsigned int __stdcall ConnectionThread(LPVOID lpParam);
 	static unsigned int __stdcall SendThread(LPVOID lpParam);
