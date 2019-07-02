@@ -261,7 +261,7 @@ private:
 
 	std::vector<std::string> m_vectQueueMap;
 };
-
+/*RabbitMQ生产者类*/
 class CRabbitMQ_Producer{
 public:
 	CRabbitMQ_Producer();
@@ -270,7 +270,7 @@ public:
 private:
 	CRabbitMQ* m_objRabbitMQ;
 };
-
+/*RabbitMQ消费者类*/
 class CRabbitMQ_Consumer{
 public:
 	CRabbitMQ_Consumer();
@@ -278,4 +278,38 @@ public:
 
 private:
 	CRabbitMQ* m_objRabbitMQ;
+};
+
+// 队列线程
+class CQueueService;
+class CQueueThread : public CThread
+{
+public:
+	CQueueThread(HANDLE hCompletionPort);
+	virtual ~CQueueThread();
+
+	virtual bool Run();
+
+private:
+	HANDLE	m_hCompletionPort;
+	BYTE	m_szBuffer[BASE_DATA_BUF_SIZE];
+};
+// 队列任务
+class CQueueService {
+public:
+	CQueueService();
+	virtual ~CQueueService();
+
+	virtual bool StartService();
+	virtual bool StopService();
+	virtual bool AddToQueue(WORD wIdentifier, void* pData, WORD wDataLen);
+	virtual bool OnRequest(void* pParam);
+
+	virtual void DoWorkLoop();
+
+public:
+	CCritSec				m_csLock;
+	CBufferPool				m_DataPool;
+	HANDLE					m_hCompletionPort;
+	CQueueThread*			m_pQueueServiceThread;
 };

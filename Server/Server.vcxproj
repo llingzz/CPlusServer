@@ -90,10 +90,10 @@
     <ClInclude Include="CPlusServer.h" />
     <ClInclude Include="db\DBCommon.h" />
     <ClInclude Include="db\DBOperator.h" />
-    <ClInclude Include="db\mysql\MySQLManager.h" />
     <ClInclude Include="HttpManager.h" />
     <ClInclude Include="include\Functions.h" />
     <ClInclude Include="include\Utilities.h" />
+    <ClInclude Include="iocp.h" />
     <ClInclude Include="redis\RedisManager.h" />
     <ClInclude Include="redis\RedisOperator.h" />
     <ClInclude Include="redis\redis\async.h">
@@ -127,8 +127,8 @@
     <ClCompile Include="CPlusClient.cpp" />
     <ClCompile Include="CPlusServer.cpp" />
     <ClCompile Include="db\DBOperator.cpp" />
-    <ClCompile Include="db\mysql\MySQLManager.cpp" />
     <ClCompile Include="HttpManager.cpp" />
+    <ClCompile Include="iocp.cpp" />
     <ClCompile Include="redis\RedisManager.cpp" />
     <ClCompile Include="redis\RedisOperator.cpp" />
     <ClCompile Include="redis\redis\async.c">

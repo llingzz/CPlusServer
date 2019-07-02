@@ -34,9 +34,12 @@ private:
 	virtual BOOL SimulateRequest(int nRequest, void* pDataPtr, int nDataLen);
 	
 	virtual BOOL HandleNetMessage(LPIO_CONTEXT pIoContext, int nOpeType);
+	virtual BOOL HandleError(LPSOCKET_CONTEXT pSocketContext);
+
 	virtual void CreateThreads();
 	virtual void CloseClients(SOCKET scoSocket);
 	virtual void RemoveSocketContext(LPSOCKET_CONTEXT pSocketContext);
+
 	virtual void SerializeNetMessage(CBufferEx& dataBuffer, LPMESSAGE_HEAD lpMessageHead, LPMESSAGE_CONTENT lpMessageContent, void* pData, int nLen);
 	virtual void DeserializeNetMessage(LPIO_CONTEXT pIoContext, LPMESSAGE_HEAD pMessageHead, LPMESSAGE_CONTENT pMessageContent);
 
@@ -44,6 +47,7 @@ private:
 	virtual inline BOOL FindClientPluse(SOCKET sSocket, PLUSE_PACKAGE& rPlusePackage);
 
 	LPCTSTR GetIniFilePath();
+	static unsigned __stdcall AcceptThreadFunc(LPVOID lpParam);
 	static unsigned __stdcall WorkerThreadFunc(LPVOID lpParam);
 	static unsigned __stdcall DealerThreadFunc(LPVOID lpParam);
 	static unsigned __stdcall ClientPluseFunc(LPVOID lpParam);
@@ -58,6 +62,9 @@ public:
 
 	int									m_nWorkerThreads;							//工作线程数
 	HANDLE*								m_phWorkerThread;							//工作线程句柄指针
+
+	HANDLE								m_hAcceptThread;							//监听线程
+	unsigned int						m_uiAcceptThreadId;							//监听线程ID
 
 	HANDLE								m_hClientPluseHandle;						//心跳检测线程句柄
 	unsigned int						m_uiClientPluseThreadId;					//心跳检测线程ID

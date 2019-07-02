@@ -1,5 +1,4 @@
 #pragma once
-
 #include <Windows.h>
 #include <vector>
 #include <limits.h>
@@ -77,7 +76,14 @@ private:
 /*临界区锁对象*/
 class CAutoLock {
 	CAutoLock(const CAutoLock &refAutoLock);
-	CAutoLock &operator=(const CAutoLock &refAutoLock);
+	CAutoLock &operator=(const CAutoLock &refAutoLock)
+	{
+		if (this != &refAutoLock)
+		{
+			this->m_pLock = refAutoLock.m_pLock;
+		}
+		return *this;
+	}
 
 protected:
 	CCritSec * m_pLock;
@@ -94,405 +100,8 @@ public:
 	};
 };
 
-/*内存管理类*/
-class CBuffer
-{
-public:
-	CBuffer()
-	{
-		m_nSize = 0;
-		m_pBase = /*(PBYTE)malloc(sizeof(BYTE))*/NULL;
-		m_pPtr = (PBYTE)malloc(sizeof(BYTE));
-	}
-	virtual ~CBuffer()
-	{
-		ClearBuffer();
-	}
-
-	void ClearBuffer()
-	{
-		m_nSize = 0;
-		DeAllocateBuffer();
-	}
-	UINT GetBufferLen()
-	{
-		return m_nSize;
-	}
-
-	UINT Delete(UINT nSize)
-	{
-		return 0;
-	}
-	UINT Read(PBYTE pData, UINT nSize)
-	{
-		return 0;
-	}
-	UINT Write(PBYTE pData, UINT nSize)
-	{
-		if (NULL == pData || nSize <= 0)
-		{
-			return -1;
-		}
-
-		ReAllocateBuffer(nSize);
-		memcpy(m_pPtr + (m_nSize - nSize), pData, nSize);
-
-		return 1;
-	}
-
-	int Scan(PBYTE pScan, UINT nPos)
-	{
-		return 0;
-	}
-	UINT Insert(PBYTE pData, UINT nSize)
-	{
-		return 0;
-	}
-
-	void Copy(CBuffer& buffer)
-	{
-		memcpy(m_pPtr, buffer.GetBuffer(), buffer.GetBufferLen());
-	}
-
-	PBYTE GetBuffer()
-	{
-		return m_pPtr;
-	}
-
-protected:
-	UINT ReAllocateBuffer(UINT nRequestedSize)
-	{
-		m_nSize += nRequestedSize;
-		/*这里如果直接为m_pPtr获取返回值的话,一旦realloc失败会返回NULL,但是m_pPtr内存本应该是不改变的,因此会导致m_pPtr原指向内容丢失，造成内存游离与泄露*/
-		/*这里使用一个m_pBase作为中介传递m_pPtr指针*/
-		m_pBase = (PBYTE)realloc(m_pPtr, m_nSize);
-		/*如果m_pBase = NULL,相当于malloc(m_nSize),m_pPtr内存地址不变;如果m_nSize = 0,realloc成功相当于free(m_pPtr),这时应该避免再次free,连续对一个指针free两次会出现问题;*/
-		/*如果m_pPtr指向的内存有足够的内存,realloc成功返回原内存地址;如果不够,realloc成功返回新内存地址,原内存地址被free,此时应该避免再次free*/
-		/*传递给realloc的指针必须先经过malloc/calloc/realloc等分配过内存的*/
-		if (NULL != m_pBase || m_pBase != m_pPtr)
-		{
-			m_pPtr = m_pBase;
-		}
-		return 1;
-	}
-	UINT DeAllocateBuffer(UINT nRequestedSize = 0)
-	{
-		/*避免野指针,free之后置为NULL*/
-		free(m_pPtr);
-		m_pPtr = NULL;
-		free(m_pBase);
-		m_pBase = NULL;
-		return 1;
-	}
-	UINT GetMemSize()
-	{
-		return 0;
-	}
-
-protected:
-	PBYTE	m_pBase;
-	PBYTE	m_pPtr;
-	UINT	m_nSize;
-};
-class CBufferEx{
-public:
-	CBufferEx(){}
-	CBufferEx(const CBufferEx& buffer)
-	{
-		*this = buffer;
-	}
-	CBufferEx(const BYTE* pBytes, int nLen)
-	{
-		this->Copy(pBytes, nLen);
-	}
-	~CBufferEx()
-	{
-		this->Clear();
-	}
-
-	CBufferEx & operator = (const CBufferEx &buffer)
-	{
-		this->Clear();
-		if (!buffer.IsEmpty())
-		{
-			m_vecBuffer.insert(m_vecBuffer.begin(), buffer.GetBuffer().begin(), buffer.GetBuffer().end());
-		}
-		return *this;
-	}
-	CBufferEx & operator += (const CBufferEx& buffer)
-	{
-		if (!buffer.IsEmpty())
-		{
-			m_vecBuffer.insert(m_vecBuffer.end(), buffer.GetBuffer().begin(), buffer.GetBuffer().end());
-		}
-	}
-
-public:
-	const BYTE* c_Bytes() const
-	{
-		return &m_vecBuffer[0];
-	} 
-	const std::vector<BYTE>& GetBuffer() const
-	{
-		return m_vecBuffer;
-	}
-
-	void Write(const BYTE& pBytes)
-	{
-		m_vecBuffer.push_back(pBytes);
-	}
-	void Write(const BYTE* pBytes, int nLen)
-	{
-		if (NULL == pBytes || 0 == nLen)
-		{
-			return;
-		}
-		m_vecBuffer.resize(this->GetLength() + nLen, 0);
-		memcpy(&m_vecBuffer[0] + this->GetLength() - nLen, pBytes, nLen);
-	}
-
-	void Insert(int nStartIndex, const BYTE* pBytes, int nLen)
-	{
-		if (NULL == pBytes || 0 == nLen || nStartIndex < 0)
-		{
-			return;
-		}
-		int nSize = this->GetLength();
-		if (nStartIndex > nSize)
-		{
-			return;
-		}
-		if (nStartIndex == nSize)
-		{
-			this->Write(pBytes, nLen);
-		}
-		else if ((nStartIndex + nLen) < nSize)
-		{
-			memcpy(&m_vecBuffer[0] + nStartIndex, pBytes, nLen);
-		}
-		else
-		{
-			m_vecBuffer.resize(nStartIndex + nLen);
-			memcpy(&m_vecBuffer[0] + nStartIndex, pBytes, nLen);
-		}
-	}
-
-	BYTE* Read(int& nLen) const
-	{
-		nLen = this->GetLength();
-		if (this->IsEmpty())
-		{
-			return NULL;
-		}
-		BYTE* pBytes = new BYTE[nLen];
-		memcpy(pBytes, &m_vecBuffer[0], nLen);
-		return pBytes;
-	}
-
-	void Copy(const BYTE* pBytes, int nLen)
-	{
-		this->Clear();
-		if (NULL == pBytes || nLen == 0)
-		{
-			return;
-		}
-		m_vecBuffer.resize(nLen, 0);
-		memcpy(&m_vecBuffer[0], pBytes, nLen);
-	}
-
-	void Clear()
-	{
-		std::vector<BYTE>().swap(this->m_vecBuffer);
-	}
-	int GetLength() const
-	{
-		return m_vecBuffer.size();
-	}
-	bool IsEmpty() const
-	{
-		return (m_vecBuffer.size() == 0);
-	}
-
-private:
-	std::vector<BYTE> m_vecBuffer;
-};
-/*环形缓冲区 TODO */
-class CRingBuffer{
-public:
-	CRingBuffer(int nSize)
-	{
-		m_nBufferSize = nSize;
-		m_pBuffer = new char[m_nBufferSize];
-		Clear();
-	}
-	~CRingBuffer()
-	{
-		delete[] m_pBuffer;
-		m_pBuffer = NULL;
-		Clear();
-	}
-
-public:
-	void Clear()
-	{
-		m_nWritePos = 0;
-		m_nReadPos = 0;
-		m_nCurrentBufferSize = 0;
-	}
-	bool Full() const
-	{
-		return (m_nCurrentBufferSize == m_nBufferSize);
-	}
-	bool Empty() const
-	{
-		return (0 == m_nCurrentBufferSize);
-	}
-	int	GetLength() const
-	{
-		return m_nCurrentBufferSize;
-	}
-
-	int Write(char* pDataPtr, int nDataLen)
-	{
-		if (nDataLen <= 0 || Full())
-		{
-			return 0;
-		}
-		
-		CAutoLock lock(&m_csLock);
-		if (m_nReadPos == m_nWritePos && 0 == m_nCurrentBufferSize)
-		{
-			int nLeftSize = m_nBufferSize - m_nWritePos;
-			if (nLeftSize >= nDataLen)
-			{
-				memcpy(m_pBuffer + m_nWritePos, pDataPtr, nDataLen);
-				m_nWritePos += nDataLen;
-				m_nCurrentBufferSize += nDataLen;
-				return nDataLen;
-			}
-			else
-			{
-				assert(nLeftSize >= nDataLen);
-				return 0;
-			}
-		}
-		else if (m_nReadPos < m_nWritePos)
-		{
-			int nLeftSize = m_nBufferSize - (m_nWritePos - m_nReadPos);
-			int nBehindSize = m_nBufferSize - m_nWritePos;
-			if (nLeftSize >= nDataLen)
-			{
-				if (nBehindSize >= nDataLen)
-				{
-					memcpy(m_pBuffer + m_nWritePos, pDataPtr, nDataLen);
-					m_nWritePos += nDataLen;
-					m_nCurrentBufferSize += nDataLen;
-					return nDataLen;
-				}
-				else
-				{
-					memcpy(m_pBuffer + m_nWritePos, pDataPtr, nBehindSize);
-					memcpy(m_pBuffer, pDataPtr + nBehindSize, nDataLen - nBehindSize);
-					m_nWritePos = nDataLen - nBehindSize;
-					m_nCurrentBufferSize += nDataLen;
-					return nDataLen;
-				}
-			}
-			else
-			{
-				assert(nLeftSize >= nDataLen);
-				return 0;
-			}
-		}
-		else
-		{
-			int nLeftSize = m_nReadPos - m_nWritePos;
-			if (nLeftSize >= nDataLen)
-			{
-				memcpy(m_pBuffer + m_nWritePos, pDataPtr, nDataLen);
-				m_nWritePos += nDataLen;
-				return nDataLen;
-			}
-			else
-			{
-				assert(nLeftSize >= nDataLen);
-				return 0;
-			}
-		}
-	}
-	int Read(char* pDataPtr, int nDataLen)
-	{
-		if (nDataLen <= 0 || Empty())
-		{
-			return 0;
-		}
-
-		CAutoLock lock(&m_csLock);
-		if (m_nReadPos == m_nWritePos && m_nBufferSize == m_nCurrentBufferSize)
-		{
-			return 0;
-		}
-		else if (m_nReadPos < m_nWritePos)
-		{
-			int nBufferSize = m_nWritePos - m_nReadPos;
-			if (nBufferSize >= nDataLen)
-			{
-				memcpy(pDataPtr, m_pBuffer + m_nReadPos, nDataLen);
-				memset(m_pBuffer + m_nReadPos, 0, nDataLen);
-				m_nReadPos += nDataLen;
-				m_nCurrentBufferSize -= nDataLen;
-				return nDataLen;
-			}
-			else
-			{
-				assert(nBufferSize >= nDataLen);
-				return 0;
-			}
-		}
-		else
-		{
-			int nBufferSize = m_nBufferSize - (m_nReadPos - m_nWritePos);
-			int nBehindSize = m_nBufferSize - m_nReadPos;
-			if (nBufferSize >= nDataLen)
-			{
-				if (nBehindSize >= nDataLen)
-				{
-					memcpy(pDataPtr, m_pBuffer + m_nReadPos, nDataLen);
-					memset(m_pBuffer + m_nReadPos, 0, nDataLen);
-					m_nReadPos += nDataLen;
-					m_nCurrentBufferSize -= nDataLen;
-					return nDataLen;
-				}
-				else
-				{
-					memcpy(pDataPtr, m_pBuffer + m_nReadPos, m_nBufferSize - m_nReadPos);
-					memset(m_pBuffer + m_nReadPos, 0, m_nBufferSize - m_nReadPos);
-					memcpy(pDataPtr + (m_nBufferSize - m_nReadPos), m_pBuffer, nDataLen - (m_nBufferSize - m_nReadPos));
-					memset(m_pBuffer, 0, nDataLen - (m_nBufferSize - m_nReadPos));
-					m_nReadPos = nDataLen - (m_nBufferSize - m_nReadPos);
-					m_nCurrentBufferSize -= nDataLen;
-					return nDataLen;
-				}
-			}
-			else
-			{
-				assert(nBufferSize >= nDataLen);
-				return 0;
-			}
-		}
-	}
-
-private:
-	CCritSec	m_csLock;
-	char*		m_pBuffer;
-	int			m_nWritePos;
-	int			m_nReadPos;
-	int			m_nCurrentBufferSize;
-	int			m_nBufferSize;
-};
-
 //自定义日志记录类
-class CLog : public CSingle<CLog>{
+class CLog : public CSingle<CLog> {
 public:
 	CLog()
 	{
@@ -649,7 +258,7 @@ private:
 	}
 
 private:
-	int         m_nLogLevel;
+	int			m_nLogLevel;
 	int			m_nCurrentIndex;
 	FILE*		m_pFp;
 	CCritSec	m_csLock;
@@ -658,4 +267,615 @@ private:
 	char		m_szLogRrefix[BASE_DATA_BUF_SIZE];
 	char		m_szLogContent[BASE_DATA_BUF_SIZE];
 	SYSTEMTIME	m_sysTime;
+};
+
+/*内存管理类*/
+class CBuffer
+{
+public:
+	CBuffer()
+	{
+		m_uiSize = 0;
+		m_pBase = nullptr;
+		m_pPtr = m_pBase;
+	}
+	virtual ~CBuffer()
+	{
+		ClearBuffer();
+	}
+	/*清理缓存数据*/
+	void ClearBuffer()
+	{
+		SAFE_DELETE_ARRAY(m_pBase);
+		m_pPtr = nullptr;
+		m_uiSize = 0;
+	}
+	/*获取当前数据长度*/
+	UINT GetBufferLen()
+	{
+		return (UINT)(m_pPtr - m_pBase);
+	}
+	/*读，返回读取的数据长度*/
+	UINT Read(PBYTE pData, UINT uiSize)
+	{
+		UINT uiDataLen = GetBufferLen();
+		if (uiDataLen <= 0 || !pData)
+		{
+			return 0;
+		}
+		else
+		{
+			if (uiSize > uiDataLen)
+			{
+				/*读取长度超出数据本身长度，不做处理*/
+				return 0;
+			}
+			else
+			{
+				/*读取完数据前移，返回读取的数据长度*/
+				memcpy(pData, m_pBase, uiSize);
+				memcpy(m_pBase, m_pBase + uiSize, m_uiSize - uiSize);
+				m_pPtr -= uiSize;
+				return uiSize;
+			}
+		}
+	}
+	/*写，返回写入的数据长度*/
+	UINT Write(PBYTE pData, UINT uiSize)
+	{
+		if (uiSize <= 0 || !pData)
+		{
+			return 0;
+		}
+		else
+		{
+			UINT uiRemainLen = m_uiSize - GetBufferLen();
+			if (uiRemainLen >= uiSize)
+			{
+				/*空间足够，直接拷贝内存*/
+				memcpy(m_pPtr, pData, uiSize);
+				m_pPtr += uiSize;
+			}
+			else
+			{
+				/*空间不足，重新申请内存*/
+				UINT uiOriginLen = ReAllocateBuffer(uiSize);
+				memcpy(m_pPtr, pData, uiSize);
+				m_pPtr += uiSize;
+			}
+			return uiSize;
+		}
+	}
+	/*获取缓存头指针*/
+	PBYTE GetBuffer()
+	{
+		return m_pBase;
+	}
+
+protected:
+	/*重新申请内存空间*/
+	UINT ReAllocateBuffer(UINT uiRequestedSize)
+	{
+		UINT uiOriginLen = GetBufferLen();
+		if (uiOriginLen >= 0)
+		{
+			PBYTE pTemp = new BYTE[uiOriginLen];
+			memcpy(pTemp, m_pBase, uiOriginLen);
+			SAFE_DELETE_ARRAY(m_pBase);
+
+			UINT uiAllocateLen = m_uiSize + (int)(uiRequestedSize / BASE_CBUFFER_SIZE + 1) * BASE_CBUFFER_SIZE;
+			m_pBase = new BYTE[uiAllocateLen];
+			memcpy(m_pBase, pTemp, uiOriginLen);
+			SAFE_DELETE_ARRAY(pTemp);
+
+			m_pPtr = m_pBase + uiOriginLen;
+			m_uiSize = uiAllocateLen;
+			return uiOriginLen;
+		}
+		return 0;
+	}
+	/*释放多余内存空间*/
+	UINT DeAllocateBuffer(UINT uiRequestedSize)
+	{
+		UINT uiOriginLen = GetBufferLen();
+		if (uiOriginLen > 0)
+		{
+			/*释放的长度大于当前所有数据长度，清理缓存数据*/
+			if (uiRequestedSize >= uiOriginLen)
+			{
+				ClearBuffer();
+				return uiOriginLen;
+			}
+			else
+			{
+				PBYTE pTemp = new BYTE[uiOriginLen];
+				memcpy(pTemp, m_pBase, uiOriginLen);
+				SAFE_DELETE_ARRAY(m_pBase);
+
+				UINT uiAllocateLen = (int)((uiOriginLen - uiRequestedSize) / BASE_CBUFFER_SIZE + 1)*BASE_CBUFFER_SIZE;
+				m_pBase = new BYTE[uiAllocateLen];
+				memcpy(m_pBase, pTemp + uiRequestedSize, uiOriginLen);
+				SAFE_DELETE_ARRAY(pTemp);
+
+				m_pPtr = m_pBase + uiOriginLen;
+				m_uiSize = uiAllocateLen;
+				return (uiAllocateLen - m_uiSize);
+			}
+		}
+		return 0;
+	}
+	/*获取当前申请的内存空间*/
+	UINT GetMemSize()
+	{
+		return m_uiSize;
+	}
+
+protected:
+	PBYTE	m_pBase;
+	PBYTE	m_pPtr;
+	UINT	m_uiSize;
+};
+class CBufferEx{
+public:
+	CBufferEx(){}
+	CBufferEx(const CBufferEx& buffer)
+	{
+		*this = buffer;
+	}
+	CBufferEx(const BYTE* pBytes, int nLen)
+	{
+		this->Copy(pBytes, nLen);
+	}
+	~CBufferEx()
+	{
+		this->Clear();
+	}
+
+	CBufferEx & operator = (const CBufferEx &buffer)
+	{
+		this->Clear();
+		if (!buffer.IsEmpty())
+		{
+			m_vecBuffer.insert(m_vecBuffer.begin(), buffer.GetBuffer().begin(), buffer.GetBuffer().end());
+		}
+		return *this;
+	}
+	CBufferEx & operator += (const CBufferEx& buffer)
+	{
+		if (!buffer.IsEmpty())
+		{
+			m_vecBuffer.insert(m_vecBuffer.end(), buffer.GetBuffer().begin(), buffer.GetBuffer().end());
+		}
+	}
+
+public:
+	const BYTE* c_Bytes() const
+	{
+		return &m_vecBuffer[0];
+	} 
+	const std::vector<BYTE>& GetBuffer() const
+	{
+		return m_vecBuffer;
+	}
+
+	void Write(const BYTE& pBytes)
+	{
+		m_vecBuffer.push_back(pBytes);
+	}
+	void Write(const BYTE* pBytes, int nLen)
+	{
+		if (NULL == pBytes || 0 == nLen)
+		{
+			return;
+		}
+		m_vecBuffer.resize(this->GetLength() + nLen, 0);
+		memcpy(&m_vecBuffer[0] + this->GetLength() - nLen, pBytes, nLen);
+	}
+
+	void Insert(int nStartIndex, const BYTE* pBytes, int nLen)
+	{
+		if (NULL == pBytes || 0 == nLen || nStartIndex < 0)
+		{
+			return;
+		}
+		int nSize = this->GetLength();
+		if (nStartIndex > nSize)
+		{
+			return;
+		}
+		if (nStartIndex == nSize)
+		{
+			this->Write(pBytes, nLen);
+		}
+		else if ((nStartIndex + nLen) < nSize)
+		{
+			memcpy(&m_vecBuffer[0] + nStartIndex, pBytes, nLen);
+		}
+		else
+		{
+			m_vecBuffer.resize(nStartIndex + nLen);
+			memcpy(&m_vecBuffer[0] + nStartIndex, pBytes, nLen);
+		}
+	}
+
+	BYTE* Read(int& nLen) const
+	{
+		nLen = this->GetLength();
+		if (this->IsEmpty())
+		{
+			return NULL;
+		}
+		BYTE* pBytes = new BYTE[nLen];
+		memcpy(pBytes, &m_vecBuffer[0], nLen);
+		return pBytes;
+	}
+
+	void Copy(const BYTE* pBytes, int nLen)
+	{
+		this->Clear();
+		if (NULL == pBytes || nLen == 0)
+		{
+			return;
+		}
+		m_vecBuffer.resize(nLen, 0);
+		memcpy(&m_vecBuffer[0], pBytes, nLen);
+	}
+
+	void Clear()
+	{
+		std::vector<BYTE>().swap(this->m_vecBuffer);
+	}
+	int GetLength() const
+	{
+		return m_vecBuffer.size();
+	}
+	bool IsEmpty() const
+	{
+		return (m_vecBuffer.size() == 0);
+	}
+
+private:
+	std::vector<BYTE> m_vecBuffer;
+};
+class CBufferPool {
+public:
+	CBufferPool()
+	{
+		m_dwBufferSize = 0;
+		m_dwDataSize = 0;
+		m_dwInsertPos = 0;
+		m_dwTrailPos = 0;
+		m_dwQueryPos = 0;
+		m_dwPacketCount = 0;
+		m_pDataBuffer = NULL;
+	}
+	virtual ~CBufferPool()
+	{
+		RemoveData();
+	}
+
+	virtual BOOL AddData(WORD wIdentifier, void* const pData, const WORD wDataLen)
+	{
+		if (!pData || 0 == wDataLen)
+		{
+			return FALSE;
+		}
+
+		DataHead stuDataHead = { 0 };
+		stuDataHead.wIdentifier = wIdentifier;
+		stuDataHead.wDataSize = wDataLen;
+		
+		// 需要添加的数据的长度
+		DWORD dwInsertSize = sizeof(DataHead) + wDataLen;
+
+		BOOL bResize = FALSE;
+		if ((m_dwDataSize + dwInsertSize) > m_dwBufferSize)
+		{
+			// 数据总长度超出，需要重新分配内存
+			bResize = TRUE;
+		}
+		else if ((m_dwInsertPos == m_dwTrailPos) && ((m_dwInsertPos + dwInsertSize) > m_dwBufferSize))
+		{
+			// 数据插入达到内存长度，此时判断当前内存区前半部已经消费过的内存长度，是否可以复用
+			if ((m_dwQueryPos >= dwInsertSize))
+			{
+				// 如果长度符合要求，重新利用前面的内存区
+				m_dwInsertPos = 0;
+			}
+			else
+			{
+				// 否则需要重新申请内存
+				bResize = TRUE;
+			}
+		}
+		else if ((m_dwInsertPos < m_dwTrailPos) && (m_dwInsertPos + dwInsertSize) > m_dwQueryPos)
+		{
+			// 复用已取出的内存区，接着添加数据判断空间是否足够
+			bResize = TRUE;
+		}
+		
+		// 内存区空间不足，需要重新申请内存
+		if (bResize)
+		{
+			DWORD dwNewSize = m_dwBufferSize + (wDataLen + sizeof(DataHead)) * 10L;
+			PBYTE pNewDataBuffer = new BYTE[dwNewSize];
+			if (!pNewDataBuffer)
+			{
+				return FALSE;
+			}
+			DWORD dwOldDataSize = m_dwTrailPos - m_dwQueryPos;
+			if (dwOldDataSize > 0)
+			{
+				// 取出后半段内存
+				memcpy(pNewDataBuffer, m_pDataBuffer + m_dwQueryPos, dwOldDataSize);
+			}
+			if (dwOldDataSize < m_dwDataSize)
+			{
+				// 如果前半段存在复用数据，同样取出
+				memcpy(pNewDataBuffer + dwOldDataSize, m_pDataBuffer, m_dwInsertPos);
+			}
+
+			// 更新内存区信息
+			m_dwQueryPos = 0L;
+			m_dwInsertPos = m_dwDataSize;
+			m_dwTrailPos = m_dwDataSize;
+			m_dwBufferSize = dwNewSize;
+			SAFE_DELETE_ARRAY(m_pDataBuffer);
+			m_pDataBuffer = pNewDataBuffer;
+		}
+
+		// 将数据copy到内存区
+		memcpy(m_pDataBuffer + m_dwInsertPos, &stuDataHead, sizeof(DataHead));
+		memcpy(m_pDataBuffer + m_dwInsertPos + sizeof(DataHead), pData, wDataLen);
+
+		// 更新内存区信息
+		m_dwPacketCount++;
+		m_dwDataSize += dwInsertSize;
+		m_dwInsertPos += dwInsertSize;
+		// m_dwTrailPos始终保持不小于m_dwInsertPos
+		m_dwTrailPos = max(m_dwTrailPos, m_dwInsertPos);
+
+		return TRUE;
+	}
+	virtual BOOL GetData(DataHead& rDataHead, void* pData, WORD wDataLen)
+	{
+		if (!pData || 0 == wDataLen || 0 == m_dwPacketCount || 0 == m_dwDataSize)
+		{
+			return FALSE;
+		}
+
+		// 数据消费到数据尾部，将查询位重置为数据头部，更新数据尾部为当前数据插入位
+		if (m_dwTrailPos == m_dwQueryPos)
+		{
+			m_dwQueryPos = 0L;
+			m_dwTrailPos = m_dwInsertPos;
+		}
+
+		LPDataHead lpDataHead = (LPDataHead)(m_pDataBuffer + m_dwQueryPos);
+		WORD wPacketDataLen = sizeof(DataHead) + lpDataHead->wDataSize;
+		WORD wCopySize = 0;
+		if (wDataLen >= lpDataHead->wDataSize)
+		{
+			wCopySize = lpDataHead->wDataSize;
+		}
+
+		rDataHead = *lpDataHead;
+		if (rDataHead.wDataSize > 0)
+		{
+			if (wDataLen < lpDataHead->wDataSize)
+			{
+				rDataHead.wDataSize = 0;
+			}
+			else
+			{
+				memcpy(pData, lpDataHead + 1, rDataHead.wDataSize);
+			}
+		}
+
+		// 更新内存区参数
+		m_dwPacketCount--;
+		m_dwDataSize -= wPacketDataLen;
+		m_dwQueryPos += wPacketDataLen;
+
+		return TRUE;
+	}
+
+	virtual void GetBufferPoolInfo(BUFFER_INFO& rBufferInfo)
+	{
+		rBufferInfo.dwDataSize = m_dwDataSize;
+		rBufferInfo.dwBufferSize = m_dwBufferSize;
+		rBufferInfo.dwDataPacketCount = m_dwPacketCount;
+	}
+	virtual void RemoveData()
+	{
+		m_dwBufferSize = 0;
+		m_dwDataSize = 0;
+		m_dwInsertPos = 0;
+		m_dwTrailPos = 0;
+		m_dwQueryPos = 0;
+		m_dwPacketCount = 0;
+		SAFE_DELETE_ARRAY(m_pDataBuffer);
+	}
+
+private:
+	DWORD m_dwBufferSize;     // 内存区长度
+	DWORD m_dwDataSize;       // 内存区内数据长度
+	DWORD m_dwInsertPos;      // 数据插入位
+	DWORD m_dwTrailPos;       // 数据结束位
+	DWORD m_dwQueryPos;       // 数据查询位
+	DWORD m_dwPacketCount;    // 内存区数据包数量
+	PBYTE m_pDataBuffer;      // 内存区数据指针
+};
+class CRingBuffer {
+public:
+	CRingBuffer(int nSize)
+	{
+		m_nBufferSize = nSize;
+		m_pBuffer = new char[m_nBufferSize];
+		Clear();
+	}
+	~CRingBuffer()
+	{
+		delete[] m_pBuffer;
+		m_pBuffer = NULL;
+		Clear();
+	}
+
+public:
+	void Clear()
+	{
+		m_nWritePos = 0;
+		m_nReadPos = 0;
+		m_nCurrentBufferSize = 0;
+	}
+	bool Full() const
+	{
+		return (m_nCurrentBufferSize == m_nBufferSize);
+	}
+	bool Empty() const
+	{
+		return (0 == m_nCurrentBufferSize);
+	}
+	int	GetLength() const
+	{
+		return m_nCurrentBufferSize;
+	}
+
+	int Write(char* pDataPtr, int nDataLen)
+	{
+		if (nDataLen <= 0 || Full())
+		{
+			return 0;
+		}
+
+		CAutoLock lock(&m_csLock);
+		if (m_nReadPos == m_nWritePos && 0 == m_nCurrentBufferSize)
+		{
+			int nLeftSize = m_nBufferSize - m_nWritePos;
+			if (nLeftSize >= nDataLen)
+			{
+				memcpy(m_pBuffer + m_nWritePos, pDataPtr, nDataLen);
+				m_nWritePos += nDataLen;
+				m_nCurrentBufferSize += nDataLen;
+				return nDataLen;
+			}
+			else
+			{
+				assert(nLeftSize >= nDataLen);
+				return 0;
+			}
+		}
+		else if (m_nReadPos < m_nWritePos)
+		{
+			int nLeftSize = m_nBufferSize - (m_nWritePos - m_nReadPos);
+			int nBehindSize = m_nBufferSize - m_nWritePos;
+			if (nLeftSize >= nDataLen)
+			{
+				if (nBehindSize >= nDataLen)
+				{
+					memcpy(m_pBuffer + m_nWritePos, pDataPtr, nDataLen);
+					m_nWritePos += nDataLen;
+					m_nCurrentBufferSize += nDataLen;
+					return nDataLen;
+				}
+				else
+				{
+					memcpy(m_pBuffer + m_nWritePos, pDataPtr, nBehindSize);
+					memcpy(m_pBuffer, pDataPtr + nBehindSize, nDataLen - nBehindSize);
+					m_nWritePos = nDataLen - nBehindSize;
+					m_nCurrentBufferSize += nDataLen;
+					return nDataLen;
+				}
+			}
+			else
+			{
+				assert(nLeftSize >= nDataLen);
+				return 0;
+			}
+		}
+		else
+		{
+			int nLeftSize = m_nReadPos - m_nWritePos;
+			if (nLeftSize >= nDataLen)
+			{
+				memcpy(m_pBuffer + m_nWritePos, pDataPtr, nDataLen);
+				m_nWritePos += nDataLen;
+				return nDataLen;
+			}
+			else
+			{
+				assert(nLeftSize >= nDataLen);
+				return 0;
+			}
+		}
+	}
+	int Read(char* pDataPtr, int nDataLen)
+	{
+		if (nDataLen <= 0 || Empty())
+		{
+			return 0;
+		}
+
+		CAutoLock lock(&m_csLock);
+		if (m_nReadPos == m_nWritePos && m_nBufferSize == m_nCurrentBufferSize)
+		{
+			return 0;
+		}
+		else if (m_nReadPos < m_nWritePos)
+		{
+			int nBufferSize = m_nWritePos - m_nReadPos;
+			if (nBufferSize >= nDataLen)
+			{
+				memcpy(pDataPtr, m_pBuffer + m_nReadPos, nDataLen);
+				memset(m_pBuffer + m_nReadPos, 0, nDataLen);
+				m_nReadPos += nDataLen;
+				m_nCurrentBufferSize -= nDataLen;
+				return nDataLen;
+			}
+			else
+			{
+				assert(nBufferSize >= nDataLen);
+				return 0;
+			}
+		}
+		else
+		{
+			int nBufferSize = m_nBufferSize - (m_nReadPos - m_nWritePos);
+			int nBehindSize = m_nBufferSize - m_nReadPos;
+			if (nBufferSize >= nDataLen)
+			{
+				if (nBehindSize >= nDataLen)
+				{
+					memcpy(pDataPtr, m_pBuffer + m_nReadPos, nDataLen);
+					memset(m_pBuffer + m_nReadPos, 0, nDataLen);
+					m_nReadPos += nDataLen;
+					m_nCurrentBufferSize -= nDataLen;
+					return nDataLen;
+				}
+				else
+				{
+					memcpy(pDataPtr, m_pBuffer + m_nReadPos, m_nBufferSize - m_nReadPos);
+					memset(m_pBuffer + m_nReadPos, 0, m_nBufferSize - m_nReadPos);
+					memcpy(pDataPtr + (m_nBufferSize - m_nReadPos), m_pBuffer, nDataLen - (m_nBufferSize - m_nReadPos));
+					memset(m_pBuffer, 0, nDataLen - (m_nBufferSize - m_nReadPos));
+					m_nReadPos = nDataLen - (m_nBufferSize - m_nReadPos);
+					m_nCurrentBufferSize -= nDataLen;
+					return nDataLen;
+				}
+			}
+			else
+			{
+				assert(nBufferSize >= nDataLen);
+				return 0;
+			}
+		}
+	}
+
+private:
+	CCritSec	m_csLock;
+	char*		m_pBuffer;
+	int			m_nWritePos;
+	int			m_nReadPos;
+	int			m_nCurrentBufferSize;
+	int			m_nBufferSize;
 };

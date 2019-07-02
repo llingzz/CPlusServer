@@ -3,6 +3,9 @@
 
 #include "stdafx.h"
 
+#include <winhttp.h>
+#pragma comment(lib, "Winhttp.lib")
+
 void TestTimer(void* pParam)
 {
 	std::cout << "Hello World!" << std::endl;
@@ -12,30 +15,9 @@ void CancelTest(void* pParam)
 	std::cout << "Canceled!" << std::endl;
 }
 
-class testTask : public CTask{
-public:
-	testTask(int nPriority = 0, int nTest = 0) :CTask(nPriority)
-	{
-		m_nTest = nTest;
-	}
-	~testTask()
-	{
-
-	}
-
-	virtual void Run(); 
-
-private:
-	int m_nTest;
-};
-void testTask::Run()
-{
-	CONSOLE_INFOS("执行任务%d", m_nTest);
-}
-
 BOOL testConsume(LPMQ_MESSAGE pMessage)
 {
-	CONSOLE_INFOS("consumed message with message id:%d ", pMessage->nMessageID);
+	myLogConsoleI("consumed message with message id:%d ", pMessage->nMessageID);
 	return TRUE;
 }
 
@@ -60,8 +42,8 @@ int _tmain(int argc, _TCHAR* argv[])
 	CPlusServer GameServer = CPlusServer();
 	if (FALSE == GameServer.Initialize())
 	{
-		FILE_ERROR("%s gameserver iniatialize failed...", __FUNCTION__);
-		CONSOLE_ERROR("%s gameserver iniatialize failed...", __FUNCTION__);
+		myLogFileE("%s gameserver iniatialize failed...", __FUNCTION__);
+		myLogConsoleE("%s gameserver iniatialize failed...", __FUNCTION__);
 	}
 	char ch;
 	do
@@ -70,43 +52,88 @@ int _tmain(int argc, _TCHAR* argv[])
 		ch = toupper(ch);
 	} while ('Q' != ch);
 	GameServer.Shutdown();
-#elif 0	//测试内存管理
-	char test[] = "test";
+#elif 1
+	CIocpServer IocpServer = CIocpServer();
+	if (!IocpServer.Initialize(_T("127.0.0.1"), 8888, 10, 20, 10, 10, 10, 10, 0, 10))
+	{
+		myLogConsoleI("server initialize failed");
+	}
+	char ch;
+	do
+	{
+		ch = 'A';
+		ch = toupper(ch);
+	} while ('Q' != ch);
+	IocpServer.Shutdown();
+#elif 0
+	CIocpWorker worker = CIocpWorker();
+	worker.BeginWorkerPool(4, 0);
+	worker.PutRequestToQueue(0, 1, "", "");
+	Sleep(10000);
+	worker.EndWorkerPool();
+#elif 0
+	CIocpWorker worker = CIocpWorker();
+	worker.BeginWorkerPool(10, 0);
+	worker.PutRequestToQueue(0, 10, "1234", "5678");
+	worker.PutRequestToQueue(0, 10, "1234", "5678");
+	worker.PutRequestToQueue(0, 10, "1234", "5678");
+	worker.PutRequestToQueue(0, 10, "1234", "5678");
+	worker.PutRequestToQueue(0, 10, "1234", "5678");
+	worker.PutRequestToQueue(0, 10, "1234", "5678");
+	worker.PutRequestToQueue(0, 10, "1234", "5678");
+	worker.EndWorkerPool();
+#elif 0	//测试内存池
+	char test1[] = "test1";
+	char test2[] = "test2";
 	MESSAGE_HEAD stuMessageHead = { 0 };
 	stuMessageHead.hSocket = 100;
 	stuMessageHead.lSession = 100;
 	stuMessageHead.lTokenID = 100;
 	MESSAGE_CONTENT stuMessageContent = { 0 };
 	stuMessageContent.nRequest = 10000;
-	stuMessageContent.nDataLen = sizeof(test);
-	stuMessageContent.pDataPtr = test;
-	/*CBuffer myDataPool;
-	myDataPool.Write((PBYTE)&stuMessageHead, sizeof(MESSAGE_HEAD));
-	myDataPool.Write((PBYTE)&stuMessageContent, sizeof(MESSAGE_CONTENT));
-	LPMESSAGE_HEAD lpHead = LPMESSAGE_HEAD(PBYTE(myDataPool.GetBuffer()));
-	LPMESSAGE_CONTENT lpContent = LPMESSAGE_CONTENT(PBYTE(myDataPool.GetBuffer()+sizeof(MESSAGE_HEAD)));*/
-	
+	stuMessageContent.nDataLen = sizeof(test1);
+	stuMessageContent.pDataPtr = test1;
+
+	CBuffer buffer;
+	buffer.Write((PBYTE)&test1, sizeof(test1));
+	buffer.Write((PBYTE)&stuMessageHead, sizeof(stuMessageHead));
+	buffer.Write((PBYTE)&stuMessageContent, sizeof(stuMessageContent));
+	PBYTE pTemp1 = new BYTE[1024];
+	PBYTE pTemp2 = new BYTE[1024];
+	PBYTE pTemp3 = new BYTE[1024];
+	buffer.Read(pTemp1, sizeof(test1));
+	buffer.Read(pTemp2, sizeof(MESSAGE_HEAD));
+	LPMESSAGE_HEAD lpHead = LPMESSAGE_HEAD(PBYTE(pTemp2));
+	buffer.Read(pTemp3, sizeof(MESSAGE_CONTENT));
+	LPMESSAGE_CONTENT lpContent = LPMESSAGE_CONTENT(PBYTE(pTemp3));
+	int len1 = sizeof(test1);
+	//int len2 = sizeof(stuMessageHead);
+	//int len3 = sizeof(stuMessageContent);
+	//PBYTE pRes = buffer.GetBuffer();
+	//LPMESSAGE_HEAD lpHead = LPMESSAGE_HEAD(PBYTE(pRes + sizeof(test1)));
+	//LPMESSAGE_CONTENT lpContent = LPMESSAGE_CONTENT(PBYTE(pRes + sizeof(test1) + sizeof(MESSAGE_HEAD)));
+
 	/*CBufferEx myDataPool;
 	myDataPool.Write((PBYTE)"Test", sizeof("Test"));
 	myDataPool.Write((PBYTE)"Test", sizeof("Test"));
 	std::cout<<myDataPool.c_Bytes() + sizeof("Test")<<std::endl;*/
-	CBufferEx myDataPool;
+	/*CBufferEx myDataPool;
 	myDataPool.Write((PBYTE)&stuMessageHead, sizeof(MESSAGE_HEAD));
 	myDataPool.Write((PBYTE)&stuMessageContent, sizeof(MESSAGE_CONTENT));
 	LPMESSAGE_HEAD lpHead = LPMESSAGE_HEAD(PBYTE(myDataPool.c_Bytes()));
-	LPMESSAGE_CONTENT lpContent = LPMESSAGE_CONTENT(PBYTE(myDataPool.c_Bytes() + sizeof(MESSAGE_HEAD)));
+	LPMESSAGE_CONTENT lpContent = LPMESSAGE_CONTENT(PBYTE(myDataPool.c_Bytes() + sizeof(MESSAGE_HEAD)));*/
 #elif 0 //测试环形缓冲区
 	char writechar[8] = { 0 };
 	memcpy(writechar, "hello", sizeof(writechar));
 	CRingBuffer Buffer(16);
 	Buffer.Write(writechar, sizeof(writechar));
 	char readchar[4] = { 0 };
-	CONSOLE_INFOS("the length is %d", Buffer.GetLength());
+	myLogConsoleI("the length is %d", Buffer.GetLength());
 	Buffer.Read(readchar, sizeof(readchar));
-	CONSOLE_INFOS("read data:%s ",readchar);
+	myLogConsoleI("read data:%s ",readchar);
 	char readchar1[8] = { 0 };
 	Buffer.Read(readchar1, sizeof(readchar1));
-	CONSOLE_INFOS("read data:%s ",readchar);
+	myLogConsoleI("read data:%s ",readchar);
 #elif 0	//测试Redis连接
 	CRedisManager Manager("127.0.0.1",6379,0);
 	Manager.ConnectServer("127.0.0.1", 6379, "8767626", 0);
@@ -189,20 +216,18 @@ int _tmain(int argc, _TCHAR* argv[])
 	while (1)
 	{
 		CMessageQueueEx::GetInstance()->SetCallbackFunc(testConsume)->Produce(&stuMQMessage);
-		CONSOLE_INFOS("produced message with message id:%d ", stuMQMessage.nMessageID);
+		myLogConsoleI("produced message with message id:%d ", stuMQMessage.nMessageID);
 		stuMQMessage.nMessageID++;
 	}
 	
 	//delete pManager;
 #elif 0	//测试自定义日志
 	CLog::GetInstance()->SetLogLevel(enINFO)->WriteLogFile("INFO %d", 1);
-	FILE_INFOS("INFO %d", 1);
-	FILE_INFOS("INFO %d", 2);
-	FILE_INFOS("INFO %d", 3);
-	FILE_INFOS("INFO %d", 4);
-	LOG_INFO_FILE("INFO %d %s", 5, "hello world!");
+	myLogFileI("INFO %d", 1);
+	myLogFileI("INFO %d", 2);
+	myLogFileI("INFO %d", 3);
+	myLogFileI("INFO %d", 4);
 	CLog::GetInstance()->SetLogLevel(enDEBUG)->WriteLogFile("DEBUG %d", 2);
-	LOG_DEBUG_FILE("DEBUG %d %s", 1, "DEBUG");
 	CLog::GetInstance()->SetLogLevel(enWARN)->WriteLogFile("WARN %d", 3);
 	CLog::GetInstance()->SetLogLevel(enTRACE)->WriteLogFile("TRACE %d", 4);
 	CLog::GetInstance()->SetLogLevel(enERROR)->WriteLogFile("ERROR %d", 5);
@@ -218,18 +243,18 @@ int _tmain(int argc, _TCHAR* argv[])
 		std::string strString = root["string"].asString();
 		int intNum = root["int"].asInt();
 
-		CONSOLE_INFOS("string %s int %d", strString.c_str(), intNum);
+		myLogConsoleI("string %s int %d", strString.c_str(), intNum);
 	}
 #elif 0 // 测试Rabbitmq
-	CONSOLE_INFOS("start CRabbitMQ_Publisher...");
+	myLogConsoleI("start CRabbitMQ_Publisher...");
 	CRabbitMQ_Producer* mq_producer = new CRabbitMQ_Producer();
 	mq_producer->SendMsg("", "", "", "Test");
 #elif 0
-	CONSOLE_INFOS("start CRabbitMQ_Consumer...");
+	myLogConsoleI("start CRabbitMQ_Consumer...");
 	CRabbitMQ_Consumer* mq_consumer = new CRabbitMQ_Consumer();
 	mq_consumer->SetRouteFilter("queueTest","routekeyTest.test",NULL,NULL);
 	mq_consumer->StartConsume();
-#elif 1
+#elif 0
 	/* 接收超时时间 */
 	timeval timeout;
 	timeout.tv_usec = 0;
@@ -271,12 +296,44 @@ int _tmain(int argc, _TCHAR* argv[])
 	/* 线程处理接收消息 */
 	m_objRabbitMQ->AddQueue("MyQueue_topic_1");
 	m_objRabbitMQ->StartConsume();
+#elif 0 // 测试内存池
+	DataHead stuData = { 0 };
+	BUFFER_INFO stuBuffer = { 0 };
+	char szBuffer[] = { 0 };
+	CBufferPool myBufferPool;
+	myBufferPool.AddData(10000, "test", sizeof("test"));
+	myBufferPool.AddData(10000, "sssstssssest", sizeof("sssstssssest"));
+	myBufferPool.GetData(stuData, szBuffer, 20);
+	myBufferPool.AddData(10000, "sssstssssest", sizeof("sssstssssest"));
+	myBufferPool.AddData(10000, "sssstssssest", sizeof("sssstssssest"));
+	myBufferPool.AddData(10000, "sssstssssest", sizeof("sssstssssest"));
+	myBufferPool.GetData(stuData, szBuffer, 20);
+	myBufferPool.AddData(10000, "sssstssssest", sizeof("sssstssssest"));
+	myBufferPool.AddData(10000, "sssstssssest", sizeof("sssstssssest"));
+	myBufferPool.GetData(stuData, szBuffer, 20);
+	myBufferPool.GetData(stuData, szBuffer, 20);
+	myBufferPool.GetBufferPoolInfo(stuBuffer);
+	getchar();
+#elif 0 // 测试队列CQueueService
+	myLogConsoleI("测试队列CQueueService");
+	WSADATA wsaData;
+	::WSAStartup(MAKEWORD(2, 2), &wsaData);
+
+	CQueueService objQueueService = CQueueService();
+	objQueueService.StartService();
+	objQueueService.AddToQueue(10000, "hello world!", sizeof("hello world!"));
+	objQueueService.AddToQueue(10000, "hello world!", sizeof("hello world!"));
+	objQueueService.AddToQueue(10000, "hello world!", sizeof("hello world!"));
+	objQueueService.StopService();
+
+	WSACleanup();
 #elif 0
-	
+	CIocpWorker worker = CIocpWorker();
+	worker.BeginWorkerPool(10, 5);
+	worker.PutRequestToQueue(1000, 1000, "hello", "world");
+	//worker.EndWorkerPool();
 #else
-	cout << "Nothing Is Done!" << endl;
 #endif
 	getchar();
-
 	return 0;
 }

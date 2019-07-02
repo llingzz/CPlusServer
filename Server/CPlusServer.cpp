@@ -3,9 +3,12 @@
 CPlusServer::CPlusServer()
 {
 	::CoInitialize(NULL);
-	GetPrivateProfileString(_T("Server"), _T("ip"), _T(""), m_szIp, IP_LENGTH, GetIniFilePath());
-	m_nPort = GetPrivateProfileInt(_T("Server"), _T("port"), 0, GetIniFilePath());
+	//GetPrivateProfileString(_T("Server"), _T("ip"), _T(""), m_szIp, IP_LENGTH, GetIniFilePath());
+	//m_nPort = GetPrivateProfileInt(_T("Server"), _T("port"), 0, GetIniFilePath());
+	lstrcpy(m_szIp, _T("127.0.0.1"));
+	m_nPort = 8888;
 	m_hShutdownEvent = NULL;
+	m_hAcceptThread = NULL;
 	m_hMessageDealerEvent = NULL;
 	m_pListenContext = NULL;
 	m_pFnAcceptEx = NULL;
@@ -17,6 +20,7 @@ CPlusServer::CPlusServer()
 CPlusServer::~CPlusServer()
 {
 	SAFE_RELEASE_HANDLE(m_hShutdownEvent);
+	SAFE_RELEASE_HANDLE(m_hAcceptThread);
 	for (auto i = 0; i < m_nWorkerThreads; i++)
 	{
 		SAFE_RELEASE_HANDLE(m_phWorkerThread[i]);
@@ -31,13 +35,13 @@ BOOL CPlusServer::Initialize()
 	auto nRet = ::WSAStartup(MAKEWORD(2, 2), &wsaData);
 	if (NO_ERROR != nRet)
 	{
-		FILE_ERROR("%s initialize the socketlibs failed...", __FUNCTION__);
+		myLogFileE("%s initialize the socketlibs failed...", __FUNCTION__);
 		return FALSE;
 	}
 
 	if (!InitializeIocp())
 	{
-		FILE_ERROR("%s initialize the iocp failed...", __FUNCTION__);
+		myLogFileE("%s initialize the iocp failed...", __FUNCTION__);
 		return FALSE;
 	}
 
@@ -50,12 +54,12 @@ BOOL CPlusServer::Initialize()
 	m_pListenContext->m_Socket = ::WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
 	if (INVALID_SOCKET == m_pListenContext->m_Socket)
 	{
-		FILE_ERROR("%s initialize the WSASocket failed...", __FUNCTION__);
+		myLogFileE("%s initialize the WSASocket failed...", __FUNCTION__);
 		return FALSE;
 	}
 	if (NULL == ::CreateIoCompletionPort((HANDLE)m_pListenContext->m_Socket, (HANDLE)m_hIocp, (DWORD)m_pListenContext, 0))
 	{
-		FILE_ERROR("%s bind the clientcontext to iocompletionport failed...", __FUNCTION__);
+		myLogFileE("%s bind the clientcontext to iocompletionport failed...", __FUNCTION__);
 		SAFE_RELEASE_SOCKET(m_pListenContext->m_Socket);
 		return FALSE;
 	}
@@ -71,13 +75,13 @@ BOOL CPlusServer::Initialize()
 	nRet = ::bind(m_pListenContext->m_Socket, (struct sockaddr*)&socketAddr, sizeof(socketAddr));
 	if (SOCKET_ERROR == nRet)
 	{
-		FILE_ERROR("%s bind socket failed...", __FUNCTION__);
+		myLogFileE("%s bind socket failed...", __FUNCTION__);
 		return FALSE;
 	}
 	nRet = ::listen(m_pListenContext->m_Socket, SOMAXCONN);
 	if (SOCKET_ERROR == nRet)
 	{
-		FILE_ERROR("%s listen socket failed...", __FUNCTION__);
+		myLogFileE("%s listen socket failed...", __FUNCTION__);
 		return FALSE;
 	}
 
@@ -94,7 +98,7 @@ BOOL CPlusServer::Initialize()
 		NULL,
 		NULL))
 	{
-		FILE_ERROR("%s WSAIoctl do not get the AcceptEx pointer...", __FUNCTION__);
+		myLogFileE("%s WSAIoctl do not get the AcceptEx pointer...", __FUNCTION__);
 		return FALSE;
 	}
 	//使用GetAcceptExSockAddr函数，获取函数指针
@@ -109,7 +113,7 @@ BOOL CPlusServer::Initialize()
 		NULL,
 		NULL))
 	{
-		FILE_ERROR("%s WSAIoctl do not get the GetAcceptExSockAddr pointer...", __FUNCTION__);
+		myLogFileE("%s WSAIoctl do not get the GetAcceptExSockAddr pointer...", __FUNCTION__);
 		return FALSE;
 	}
 
@@ -142,7 +146,7 @@ BOOL CPlusServer::Initialize()
 					++iter;
 				}
 			}
-			FILE_ERROR("%s post accept failed...", __FUNCTION__);
+			myLogFileE("%s post accept failed...", __FUNCTION__);
 			return FALSE;
 		}
 		//FILE_INFOS("%s posted AcceptEx request...", __FUNCTION__);
@@ -167,18 +171,18 @@ BOOL CPlusServer::Shutdown()
 	}
 	WSACleanup();
 
-	FILE_INFOS("%s the server shutdown !!!", __FUNCTION__);
-	CONSOLE_INFOS("%s the server shutdown !!!", __FUNCTION__);
+	myLogFileI("%s the server shutdown !!!", __FUNCTION__);
+	myLogConsoleI("%s the server shutdown !!!", __FUNCTION__);
 	return TRUE;
 }
 
 BOOL CPlusServer::InitializeIocp()
 {
-	FILE_INFOS("%s start initialize the iocpmodule...", __FUNCTION__);
+	myLogFileI("%s start initialize the iocpmodule...", __FUNCTION__);
 	m_hIocp = ::CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
 	if (NULL == m_hIocp)
 	{
-		FILE_ERROR("%s create iocp failed...", __FUNCTION__);
+		myLogFileE("%s create iocp failed...", __FUNCTION__);
 		return FALSE;
 	}
 
@@ -197,13 +201,20 @@ BOOL CPlusServer::InitializeIocp()
 		m_phWorkerThread[i] = (HANDLE)::_beginthreadex(NULL, 0, WorkerThreadFunc, (LPVOID)pWorkerThreadParam, 0, &uiThreadId);
 		if (NULL == m_phWorkerThread[i])
 		{
-			FILE_ERROR("%s create workerthread failed at threadId :%d :%d", __FUNCTION__, uiThreadId, pWorkerThreadParam->nThreadId);
+			myLogFileE("%s create workerthread failed at threadId :%d :%d", __FUNCTION__, uiThreadId, pWorkerThreadParam->nThreadId);
 			return FALSE;
 		}
 	}
 
-	FILE_INFOS("%s create %d workerthread successful...", __FUNCTION__, m_nWorkerThreads);
-	FILE_INFOS("%s initialize the iocpmodule successful...", __FUNCTION__);
+	m_hAcceptThread = (HANDLE)::_beginthreadex(NULL, 0, AcceptThreadFunc, (LPVOID)this, 0, &m_uiAcceptThreadId);
+	if (NULL == m_hAcceptThread)
+	{
+		myLogFileE("%s create acceptthread failed at threadId :%d ", __FUNCTION__, m_uiAcceptThreadId);
+		return FALSE;
+	}
+
+	myLogFileI("%s create %d workerthread successful...", __FUNCTION__, m_nWorkerThreads);
+	myLogFileI("%s initialize the iocpmodule successful...", __FUNCTION__);
 	return TRUE;
 }
 
@@ -211,7 +222,7 @@ BOOL CPlusServer::OnClientPluse(LPMESSAGE_HEAD lpMessageHead, LPMESSAGE_CONTENT 
 {
 	if (!lpMessageHead || !lpMessageContent)
 	{
-		FILE_ERROR("%s the params is null...", __FUNCTION__);
+		myLogFileE("%s the params is null...", __FUNCTION__);
 		return FALSE;
 	}
 
@@ -237,8 +248,8 @@ BOOL CPlusServer::OnClientPluse(LPMESSAGE_HEAD lpMessageHead, LPMESSAGE_CONTENT 
 		m_mapClientPluse.insert(std::make_pair(socket, stuPlusePackage));
 	}
 
-	FILE_INFOS("%s on got client pluse data [%s]...", __FUNCTION__, lpMessageContent->pDataPtr);
-	CONSOLE_INFOS("%s on got client pluse data [%s]...", __FUNCTION__, lpMessageContent->pDataPtr);
+	myLogFileI("%s on got client pluse data [%s]...", __FUNCTION__, lpMessageContent->pDataPtr);
+	myLogConsoleI("%s on got client pluse data [%s]...", __FUNCTION__, lpMessageContent->pDataPtr);
 
 	return TRUE;
 }
@@ -247,7 +258,7 @@ BOOL CPlusServer::PostAccept(LPIO_CONTEXT pIoContext)
 {
 	if (INVALID_SOCKET == m_pListenContext->m_Socket)
 	{
-		FILE_ERROR("%s the socket is invalid...", __FUNCTION__);
+		myLogFileE("%s the socket is invalid...", __FUNCTION__);
 		return FALSE;
 	}
 
@@ -259,7 +270,7 @@ BOOL CPlusServer::PostAccept(LPIO_CONTEXT pIoContext)
 	pIoContext->m_Socket = ::WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
 	if (INVALID_SOCKET == pIoContext->m_Socket)
 	{
-		FILE_ERROR("%s create the scoket for accept failed...", __FUNCTION__);
+		myLogFileE("%s create the scoket for accept failed...", __FUNCTION__);
 		return FALSE;
 	}
 
@@ -269,13 +280,13 @@ BOOL CPlusServer::PostAccept(LPIO_CONTEXT pIoContext)
 	{
 		if (WSA_IO_PENDING != WSAGetLastError())
 		{
-			FILE_ERROR("%s post the AcceptEx request filed...%s", __FUNCTION__, WSAGetLastError());
+			myLogFileE("%s post the AcceptEx request filed...%s", __FUNCTION__, WSAGetLastError());
 			return FALSE;
 		}
-		FILE_INFOS("%s post the AcceptEx request successful with m_pFnAcceptEx == FALSE...", __FUNCTION__);
+		myLogFileI("%s post the AcceptEx request successful with m_pFnAcceptEx == FALSE...", __FUNCTION__);
 	}
 	
-	FILE_INFOS("%s post the AcceptEx request successful...", __FUNCTION__);
+	myLogFileI("%s post the AcceptEx request successful...", __FUNCTION__);
 	return TRUE;
 }
 
@@ -297,8 +308,8 @@ BOOL CPlusServer::DoAccept(LPSOCKET_CONTEXT pSocketContext, LPIO_CONTEXT pIoCont
 		(LPSOCKADDR*)&siClientAddr,
 		&nSiClientLen);
 
-	FILE_INFOS("client connected with ip:%s port:%d...", inet_ntoa(siClientAddr->sin_addr), ntohs(siClientAddr->sin_port));
-	CONSOLE_INFOS("client connected with ip:%s port:%d...", inet_ntoa(siClientAddr->sin_addr), ntohs(siClientAddr->sin_port));
+	myLogFileI("client connected with ip:%s port:%d...", inet_ntoa(siClientAddr->sin_addr), ntohs(siClientAddr->sin_port));
+	myLogConsoleI("client connected with ip:%s port:%d...", inet_ntoa(siClientAddr->sin_addr), ntohs(siClientAddr->sin_port));
 
 	//接着新建一个SOCKET_CONTEXT用于新连入的Socket，保留原来的Context用于监听下一个连接
 	LPSOCKET_CONTEXT pNewSocketContext = new SOCKET_CONTEXT;
@@ -312,7 +323,7 @@ BOOL CPlusServer::DoAccept(LPSOCKET_CONTEXT pSocketContext, LPIO_CONTEXT pIoCont
 	//与完成端口绑定
 	if (NULL == (::CreateIoCompletionPort((HANDLE)pNewSocketContext->m_Socket, m_hIocp, (DWORD)pNewSocketContext, 0)))
 	{
-		FILE_ERROR("%s associate with the iocompletionport failed...", __FUNCTION__);
+		myLogFileE("%s associate with the iocompletionport failed...", __FUNCTION__);
 		SAFE_DELETE(pNewSocketContext);
 		return FALSE;
 	}
@@ -330,7 +341,7 @@ BOOL CPlusServer::DoAccept(LPSOCKET_CONTEXT pSocketContext, LPIO_CONTEXT pIoCont
 	pNewSocketContext->m_vectIoContext.push_back(pNewIoContext);
 	if (FALSE == PostRecv(pNewIoContext))
 	{
-		FILE_ERROR("%s post new iocontext failed...", __FUNCTION__);
+		myLogFileE("%s post new iocontext failed...", __FUNCTION__);
 		std::vector<LPIO_CONTEXT>::iterator iter;
 		for (iter = pNewSocketContext->m_vectIoContext.begin(); iter != pNewSocketContext->m_vectIoContext.end();)
 		{
@@ -370,17 +381,19 @@ BOOL CPlusServer::PostSend(LPIO_CONTEXT pIoContext)
 	auto nRet = ::WSASend(pIoContext->m_Socket, pWSABuf, 1, &dwBytes, dwFlags, pOverlapped, NULL);
 	if ((SOCKET_ERROR == nRet) && (WSA_IO_PENDING != WSAGetLastError()))
 	{
-		FILE_ERROR("%s post the WSASend failed...", __FUNCTION__);
+		myLogFileE("%s post the WSASend failed...", __FUNCTION__);
 		return FALSE;
 	}
 	
+	delete pIoContext;
 	//FILE_INFOS("%s post the WSASend success...", __FUNCTION__);
 	return TRUE;
 }
 
 BOOL CPlusServer::DoSend(LPSOCKET_CONTEXT pSocketContext, LPIO_CONTEXT pIoContext)
 {
-	FILE_INFOS("%s send data to ip:%s port:%d...", __FUNCTION__, inet_ntoa(pSocketContext->m_SockAddrIn.sin_addr), ntohs(pSocketContext->m_SockAddrIn.sin_port));
+	myLogFileI("%s send data to ip:%s port:%d...", __FUNCTION__, inet_ntoa(pSocketContext->m_SockAddrIn.sin_addr), ntohs(pSocketContext->m_SockAddrIn.sin_port));
+	delete pSocketContext;
 	return PostSend(pIoContext);
 }
 
@@ -397,7 +410,7 @@ BOOL CPlusServer::PostRecv(LPIO_CONTEXT pIoContext)
 	if (SOCKET_ERROR == nRet && WSA_IO_PENDING != GetLastError())
 	{
 		//如果返回错误而且错误代码并非是Pending的话，请求失败
-		FILE_ERROR("%s post the WSARecv failed...", __FUNCTION__);
+		myLogFileE("%s post the WSARecv failed...", __FUNCTION__);
 		return FALSE;
 	}
 
@@ -424,7 +437,7 @@ BOOL CPlusServer::SendRequest(SOCKET sClient, int nRequest, void* pDataPtr, int 
 	
 	while (!PostThreadMessage(m_uiMessageDealerThreadId, WM_DATA_TO_SEND, (WPARAM)pMessageHead, (LPARAM)pMessageContent))
 	{
-		FILE_ERROR("%s post the thread message failed with nRequestID:%d", __FUNCTION__, pMessageContent->nRequest);
+		myLogFileE("%s post the thread message failed with nRequestID:%d", __FUNCTION__, pMessageContent->nRequest);
 		return FALSE;
 	}
 
@@ -443,7 +456,7 @@ BOOL CPlusServer::SendResponse(SOCKET sClient, int nRequest, void* pDataPtr, int
 
 	while (!PostThreadMessage(m_uiMessageDealerThreadId, WM_DATA_TO_SEND, (WPARAM)pMessageHead, (LPARAM)pMessageContent))
 	{
-		FILE_ERROR("%s post the thread message failed with nRequestID:%d", __FUNCTION__, pMessageContent->nRequest);
+		myLogFileE("%s post the thread message failed with nRequestID:%d", __FUNCTION__, pMessageContent->nRequest);
 		return FALSE;
 	}
 
@@ -454,7 +467,7 @@ BOOL CPlusServer::OnRequest(void* pParam1, void* pParam2)
 {
 	if (!pParam1 || !pParam2)
 	{
-		FILE_ERROR("%s the params is NULL!!!", __FUNCTION__);
+		myLogFileE("%s the params is NULL!!!", __FUNCTION__);
 		return FALSE;
 	}
 	
@@ -462,28 +475,28 @@ BOOL CPlusServer::OnRequest(void* pParam1, void* pParam2)
 	LPMESSAGE_CONTENT lpMessageContent = (LPMESSAGE_CONTENT)pParam2;
 	if (!lpMessageHead || !lpMessageContent)
 	{
-		FILE_ERROR("%s the deserialize params is NULL!!!", __FUNCTION__);
+		myLogFileE("%s the deserialize params is NULL!!!", __FUNCTION__);
 		return FALSE;
 	}
 	
 	auto nTicksCounts = GetTickCount();
-	CONSOLE_INFOS("------ begin the request id %ld  ------", lpMessageContent->nRequest);
-	CONSOLE_INFOS("------ the socket %ld requesting ------", lpMessageHead->hSocket);
+	myLogConsoleI("------ begin the request id %ld  ------", lpMessageContent->nRequest);
+	myLogConsoleI("------ the socket %ld requesting ------", lpMessageHead->hSocket);
 
 	switch (lpMessageContent->nRequest)
 	{
 	case PROTOCOL_CLIENT_PLUSE:
-		CONSOLE_INFOS("%s socket %ld push PROTOCOL_CLIENT_PLUSE requesting", __FUNCTION__, lpMessageHead->hSocket);
-		FILE_INFOS("%s socket %ld push PROTOCOL_CLIENT_PLUSE requesting", __FUNCTION__, lpMessageHead->hSocket);
+		myLogConsoleI("%s socket %ld push PROTOCOL_CLIENT_PLUSE requesting", __FUNCTION__, lpMessageHead->hSocket);
+		myLogFileI("%s socket %ld push PROTOCOL_CLIENT_PLUSE requesting", __FUNCTION__, lpMessageHead->hSocket);
 		OnClientPluse(lpMessageHead, lpMessageContent);
 		break;
 	default:
-		CONSOLE_INFOS("%s socket %ld push NULL requesting", __FUNCTION__, lpMessageHead->hSocket);
-		FILE_INFOS("%s socket %ld push NULL requesting", __FUNCTION__, lpMessageHead->hSocket);
+		myLogConsoleI("%s socket %ld push NULL requesting", __FUNCTION__, lpMessageHead->hSocket);
+		myLogFileI("%s socket %ld push NULL requesting", __FUNCTION__, lpMessageHead->hSocket);
 		break;
 	}
 
-	CONSOLE_INFOS("------ end the request id %ld cost time %ld ------", lpMessageContent->nRequest, GetTickCount() - nTicksCounts);
+	myLogConsoleI("------ end the request id %ld cost time %ld ------", lpMessageContent->nRequest, GetTickCount() - nTicksCounts);
 
 	SAFE_DELETE(lpMessageHead);
 	SAFE_DELETE(lpMessageContent->pDataPtr);
@@ -495,7 +508,7 @@ BOOL CPlusServer::OnResponse(void* pParam1, void* pParam2)
 {
 	if (!pParam1 || !pParam2)
 	{
-		FILE_ERROR("%s the params is NULL!!!", __FUNCTION__);
+		myLogFileE("%s the params is NULL!!!", __FUNCTION__);
 		return FALSE;
 	}
 
@@ -503,7 +516,7 @@ BOOL CPlusServer::OnResponse(void* pParam1, void* pParam2)
 	LPMESSAGE_CONTENT lpMessageContent = (LPMESSAGE_CONTENT)pParam2;
 	if (!lpMessageHead || !lpMessageContent)
 	{
-		FILE_ERROR("%s the deserialize params is NULL!!!", __FUNCTION__);
+		myLogFileE("%s the deserialize params is NULL!!!", __FUNCTION__);
 		return FALSE;
 	}
 
@@ -540,7 +553,7 @@ BOOL CPlusServer::SimulateRequest(int nRequest, void* pDataPtr, int nDataLen)
 
 	while (!PostThreadMessage(m_uiMessageDealerThreadId, WM_DATA_TO_RECV, (WPARAM)pMessageHead, (LPARAM)pMessageContent))
 	{
-		FILE_ERROR("%s post the thread message failed.", __FUNCTION__);
+		myLogFileE("%s post the thread message failed.", __FUNCTION__);
 		return FALSE;
 	}
 	return TRUE;
@@ -553,7 +566,44 @@ BOOL CPlusServer::HandleNetMessage(LPIO_CONTEXT pIoContext, int nOpeType)
 	DeserializeNetMessage(pIoContext, pMessageHead, pMessageContent);
 	while (!PostThreadMessage(m_uiMessageDealerThreadId, nOpeType, (WPARAM)pMessageHead, (LPARAM)pMessageContent))
 	{
-		FILE_ERROR("%s post the thread message failed with nRequestID:%d retrying...", __FUNCTION__, pMessageContent->nRequest);
+		myLogFileE("%s post the thread message failed with nRequestID:%d retrying...", __FUNCTION__, pMessageContent->nRequest);
+	}
+
+	return TRUE;
+}
+
+BOOL CPlusServer::HandleError(LPSOCKET_CONTEXT pSocketContext)
+{
+	DWORD dwError = GetLastError();
+	if (ERROR_INVALID_HANDLE == dwError)
+	{
+		myLogFileE("%s the handle is invalid... dwError:%d ", __FUNCTION__, dwError);
+		return FALSE;
+	}
+	else if (ERROR_OPERATION_ABORTED == dwError)
+	{
+		myLogFileE("%s the I/O operation has been aborted because of either a thread exit or an application request. dwError:%d ", __FUNCTION__, dwError);
+		myLogFileE("%s client with ip:%s port:%d disconnected...", __FUNCTION__, inet_ntoa(pSocketContext->m_SockAddrIn.sin_addr), ntohs(pSocketContext->m_SockAddrIn.sin_port));
+		CloseClients(pSocketContext->m_Socket);
+		RemoveSocketContext(pSocketContext);
+	}
+	else if (WAIT_TIMEOUT == dwError)
+	{
+		myLogFileE("%s the wait operation timed out... retrying... dwError:%d ", __FUNCTION__, dwError);
+	}
+	else if (ERROR_NETNAME_DELETED == dwError)
+	{
+		myLogFileE("%s the specified network name is no longer available. dwError:%d ", __FUNCTION__, dwError);
+		myLogFileE("%s client with ip:%s port:%d disconnected...", __FUNCTION__, inet_ntoa(pSocketContext->m_SockAddrIn.sin_addr), ntohs(pSocketContext->m_SockAddrIn.sin_port));
+		CloseClients(pSocketContext->m_Socket);
+		RemoveSocketContext(pSocketContext);
+	}
+	else
+	{
+		myLogFileE("%s GetQueuedCompletionStatus failed. GetLastError() returns dwError:%d ", __FUNCTION__, dwError);
+		myLogFileE("%s client with ip:%s port:%d disconnected...", __FUNCTION__, inet_ntoa(pSocketContext->m_SockAddrIn.sin_addr), ntohs(pSocketContext->m_SockAddrIn.sin_port));
+		CloseClients(pSocketContext->m_Socket);
+		RemoveSocketContext(pSocketContext);
 	}
 
 	return TRUE;
@@ -669,59 +719,39 @@ LPCTSTR CPlusServer::GetIniFilePath()
 	return m_szIniFilePath;
 }
 
+unsigned __stdcall CPlusServer::AcceptThreadFunc(LPVOID lpParam)
+{
+	CPlusServer* pServer = (CPlusServer*)lpParam;
+	while (WAIT_OBJECT_0 != WaitForSingleObject(pServer->m_hShutdownEvent, 0))
+	{
+
+	}
+
+	return 0;
+}
+
 unsigned __stdcall CPlusServer::WorkerThreadFunc(LPVOID lpParam)
 {
 	LPWORKER_THREAD_PARAM pWorkerThreadParam = (LPWORKER_THREAD_PARAM)lpParam;
-	FILE_INFOS("%s the workerthread with id:%d started...", __FUNCTION__, pWorkerThreadParam->nThreadId);
+	myLogFileI("%s the workerthread with id:%d started...", __FUNCTION__, pWorkerThreadParam->nThreadId);
 
 	OVERLAPPED* pOverlapped = NULL;
 	LPSOCKET_CONTEXT pSocketContext = NULL;
+	DWORD dwKey = 0;
 	DWORD dwByteTransfered = 0;
 	while (WAIT_OBJECT_0 != WaitForSingleObject(pWorkerThreadParam->pServer->m_hShutdownEvent, 0))
 	{
-		auto bRet = ::GetQueuedCompletionStatus(
-			pWorkerThreadParam->pServer->m_hIocp,
-			&dwByteTransfered,
-			(PULONG_PTR)&pSocketContext,
-			&pOverlapped,
-			INFINITE);
+		auto bRet = ::GetQueuedCompletionStatus(pWorkerThreadParam->pServer->m_hIocp, &dwByteTransfered, (PULONG_PTR)&dwKey, &pOverlapped, INFINITE);
 		if (!bRet)
 		{
 			if (NULL == pSocketContext)
 			{
-				FILE_ERROR("%s GetQueuedCompletionStatus got socketcontext is NULL!!!", __FUNCTION__);
+				myLogFileE("%s GetQueuedCompletionStatus got socketcontext is NULL!!!", __FUNCTION__);
 				continue;
 			}
-			DWORD dwError = GetLastError();
-			if (ERROR_INVALID_HANDLE == dwError)
+			if (!pWorkerThreadParam->pServer->HandleError(pSocketContext))
 			{
-				FILE_ERROR("%s the handle is invalid... dwError:%d ", __FUNCTION__, dwError);
 				break;
-			}
-			else if (ERROR_OPERATION_ABORTED == dwError)
-			{
-				FILE_ERROR("%s the I/O operation has been aborted because of either a thread exit or an application request. dwError:%d ", __FUNCTION__, dwError);
-				FILE_ERROR("%s client with ip:%s port:%d disconnected...", __FUNCTION__, inet_ntoa(pSocketContext->m_SockAddrIn.sin_addr), ntohs(pSocketContext->m_SockAddrIn.sin_port));
-				pWorkerThreadParam->pServer->CloseClients(pSocketContext->m_Socket);
-				pWorkerThreadParam->pServer->RemoveSocketContext(pSocketContext);
-			}
-			else if (WAIT_TIMEOUT == dwError)
-			{
-				FILE_ERROR("%s the wait operation timed out... retrying... dwError:%d ", __FUNCTION__, dwError);
-			}
-			else if (ERROR_NETNAME_DELETED == dwError)
-			{
-				FILE_ERROR("%s the specified network name is no longer available. dwError:%d ", __FUNCTION__, dwError);
-				FILE_ERROR("%s client with ip:%s port:%d disconnected...", __FUNCTION__, inet_ntoa(pSocketContext->m_SockAddrIn.sin_addr), ntohs(pSocketContext->m_SockAddrIn.sin_port));
-				pWorkerThreadParam->pServer->CloseClients(pSocketContext->m_Socket);
-				pWorkerThreadParam->pServer->RemoveSocketContext(pSocketContext);
-			}
-			else
-			{
-				FILE_ERROR("%s GetQueuedCompletionStatus failed. GetLastError() returns dwError:%d ", __FUNCTION__, dwError);
-				FILE_ERROR("%s client with ip:%s port:%d disconnected...", __FUNCTION__, inet_ntoa(pSocketContext->m_SockAddrIn.sin_addr), ntohs(pSocketContext->m_SockAddrIn.sin_port));
-				pWorkerThreadParam->pServer->CloseClients(pSocketContext->m_Socket);
-				pWorkerThreadParam->pServer->RemoveSocketContext(pSocketContext);
 			}
 			continue;
 		}
@@ -730,7 +760,7 @@ unsigned __stdcall CPlusServer::WorkerThreadFunc(LPVOID lpParam)
 			LPIO_CONTEXT pIoContext = CONTAINING_RECORD(pOverlapped, IO_CONTEXT, m_Overlapped);
 			if (0 == dwByteTransfered && (OPE_RECV == pIoContext->m_OpeType || OPE_SEND == pIoContext->m_OpeType))
 			{
-				FILE_ERROR("client with ip:%s: port:%d disconnected...", inet_ntoa(pSocketContext->m_SockAddrIn.sin_addr), ntohs(pSocketContext->m_SockAddrIn.sin_port));
+				myLogFileE("client with ip:%s: port:%d disconnected...", inet_ntoa(pSocketContext->m_SockAddrIn.sin_addr), ntohs(pSocketContext->m_SockAddrIn.sin_port));
 				pWorkerThreadParam->pServer->CloseClients(pSocketContext->m_Socket);
 				pWorkerThreadParam->pServer->RemoveSocketContext(pSocketContext);
 				continue;
@@ -749,16 +779,17 @@ unsigned __stdcall CPlusServer::WorkerThreadFunc(LPVOID lpParam)
 					break;
 				case OPE_SEND:
 					//FILE_INFOS("%s OPE_SEND request...", __FUNCTION__);
+					pWorkerThreadParam->pServer->DoSend(pSocketContext, pIoContext);
 					break;
 				default:
-					FILE_WARNS("%s pIoContext->m_OpType == default of workerthread params encounter a problem...", __FUNCTION__);
+					myLogFileW("%s pIoContext->m_OpType == default of workerthread params encounter a problem...", __FUNCTION__);
 					break;
 				}
 			}
 		}
 	}
 
-	FILE_FATAL("%s workerthread with id:%d exit...", __FUNCTION__, pWorkerThreadParam->nThreadId);
+	myLogFileF("%s workerthread with id:%d exit...", __FUNCTION__, pWorkerThreadParam->nThreadId);
 	SAFE_DELETE(lpParam);
 	return 0;
 }
@@ -785,14 +816,14 @@ unsigned __stdcall CPlusServer::DealerThreadFunc(LPVOID lpParam)
 				pServer->OnRequest((LPMESSAGE_HEAD)msg.wParam, (LPMESSAGE_CONTENT)msg.lParam);
 				break;
 			default:
-				FILE_ERROR("%s the message type is invalid...", __FUNCTION__);
+				myLogFileE("%s the message type is invalid...", __FUNCTION__);
 				DispatchMessage(&msg);
 				break;
 			}
 		}
 	}
 
-	FILE_FATAL("%s thread exit...", __FUNCTION__);
+	myLogFileF("%s thread exit...", __FUNCTION__);
 	return 0;
 }
 
@@ -803,7 +834,7 @@ unsigned __stdcall CPlusServer::ClientPluseFunc(LPVOID lpParam)
 	{
 		Sleep(MAX_PLUSE_INTEVAL * 1000);
 		auto nTickCounts = GetTickCount();
-		FILE_INFOS("%s start clear clients which lost connection with server beyond 30 seconds...", __FUNCTION__);
+		myLogFileI("%s start clear clients which lost connection with server beyond 30 seconds...", __FUNCTION__);
 		CAutoLock lock(&pServer->m_csMapClientPluse);
 		std::map<SOCKET, PLUSE_PACKAGE>::iterator iter = pServer->m_mapClientPluse.begin();
 		while (iter != pServer->m_mapClientPluse.end())
@@ -816,9 +847,9 @@ unsigned __stdcall CPlusServer::ClientPluseFunc(LPVOID lpParam)
 			}
 			iter++;
 		}
-		FILE_INFOS("%s clear lost clients done current connections %d cost time %ld ", __FUNCTION__, pServer->m_mapClientPluse.size(), GetTickCount() - nTickCounts);
+		myLogFileI("%s clear lost clients done current connections %d cost time %ld ", __FUNCTION__, pServer->m_mapClientPluse.size(), GetTickCount() - nTickCounts);
 	}
 
-	FILE_FATAL("%s thread exit...", __FUNCTION__);
+	myLogFileF("%s thread exit...", __FUNCTION__);
 	return 0;
 }

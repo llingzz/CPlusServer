@@ -2,6 +2,7 @@
 //
 
 #include "stdafx.h"
+#include <ctime>
 #include <process.h>
 
 #define SAFE_RELEASE_HANDLE(x)               {if(x != NULL && x!=INVALID_HANDLE_VALUE){ CloseHandle(x);x = NULL;}}
@@ -34,7 +35,8 @@ CClient::~CClient()
 
 BOOL CClient::InitialiazeConnection()
 {
-	unsigned int nThreadID;
+	unsigned int nSendThreadID;
+	unsigned int nRecvThreadID;
 
 	m_phSendThreads = new HANDLE[m_nThreads];
 	m_phRecvThreads = new HANDLE[m_nThreads];
@@ -61,42 +63,8 @@ BOOL CClient::InitialiazeConnection()
 		sprintf(m_pWorkerThreadParam[i].szBuffer, "Thread:%d Data:%s", m_pWorkerThreadParam[i].nThreadId, "Hello Server...");
 		m_pWorkerThreadParam[i].pClient = this;
 
-		//m_phRecvThreads[i] = (HANDLE)::_beginthreadex(0, 0, RecvThread, (void*)&m_pWorkerThreadParam[i], 0, &nThreadID);
-#if 1
-		m_phSendThreads[i] = (HANDLE)::_beginthreadex(0, 0, SendThread, (void*)&m_pWorkerThreadParam[i], 0, &nThreadID);
-		//char test[] = "Hello Server!";
-		//while (1)
-		{
-			//SendData(m_pWorkerThreadParam[i].sSocket, 10000, test, sizeof(test));
-			//Sleep(10000);
-		}
-#else
-		auto nBytesSend = 0;
-		char szSend[MAX_DATA_BUF_SIZE];
-		memset(szSend, 0, sizeof(szSend));
-
-		sprintf(szSend, "%s", /*pParam->szBuffer*/"Hello Server!");
-		printf("%s\n", szSend);
-		nBytesSend = ::send(m_pWorkerThreadParam[i].sSocket, szSend, strlen(szSend), 0);
-		if (SOCKET_ERROR == nBytesSend)
-		{
-			std::cout << "Send Message Failed..." << std::endl;
-			return 1;
-		}
-		//std::cout << "Send First Data to Server Successful..." << std::endl;
-
-		Sleep(100);
-
-		memset(szSend, 0, sizeof(szSend));
-		sprintf(szSend, "%s", "Hello Server! See you Again!");
-		printf("%s\n", szSend);
-		nBytesSend = ::send(m_pWorkerThreadParam[i].sSocket, szSend, strlen(szSend), 0);
-		if (SOCKET_ERROR == nBytesSend)
-		{
-			std::cout << "Send Message Failed..." << std::endl;
-			return 1;
-		}
-#endif
+		m_phSendThreads[i] = (HANDLE)::_beginthreadex(0, 0, SendThread, (void*)&m_pWorkerThreadParam[i], 0, &nSendThreadID);
+		m_phRecvThreads[i] = (HANDLE)::_beginthreadex(0, 0, RecvThread, (void*)&m_pWorkerThreadParam[i], 0, &nRecvThreadID);
 	}
 
 	return TRUE;
@@ -153,7 +121,7 @@ void CClient::UnloadSocketLib()
 BOOL CClient::Run()
 {
 	m_hShutdownEvent = ::CreateEvent(NULL, TRUE, FALSE, NULL);
-	unsigned int nThreadID;
+	unsigned int nThreadID = 0;
 
 	WORKER_THREAD_PARAM* pWorkerThreadParams = new WORKER_THREAD_PARAM;
 	pWorkerThreadParams->pClient = this;
@@ -216,82 +184,11 @@ unsigned int __stdcall CClient::SendThread(LPVOID lpParam)
 	WORKER_THREAD_PARAM* pParam = (WORKER_THREAD_PARAM*)lpParam;
 	CClient* pClient = (CClient*)pParam->pClient;
 
-	//EnterCriticalSection(&pClient->m_csSend);
-	auto nBytesSend1 = 0;
-	auto nBytesSend2 = 0;
-
-	while(TRUE)
+	while (TRUE)
 	{
-		char test[] = "Hello Server!";
-#if 0
-		pClient->SendData(pParam->sSocket, 10000, test, sizeof(test));
-		//DWORD nTest = (rand() / 100000);
-		//std::cout << test<< ".." << nTest << endl;
-#elif 1 // ²âÊÔhttp
-		pClient->GetHttp(pParam->sSocket);
-#endif
-		Sleep(50000);
+		Sleep(2500);
+		pClient->SendData(pParam->sSocket, 10001, "hello world!", sizeof("hello world!"));
 	}
-
-#if 0
-	char szSend1[MAX_DATA_BUF_SIZE];
-	memset(szSend1, 0, sizeof(szSend1));
-
-	sprintf(szSend1, "%s", /*pParam->szBuffer*/"Hello Server!");
-	printf("%s\n", szSend1);
-	nBytesSend1 = ::send(pParam->sSocket, "Hello Server!", strlen(szSend1), 0);
-	if (SOCKET_ERROR == nBytesSend1)
-	{
-		std::cout << "Send Message Failed..." << std::endl;
-		return 1;
-	}
-	//std::cout << "Send First Data to Server Successful..." << std::endl;
-
-	Sleep(1000);
-
-	char szSend2[MAX_DATA_BUF_SIZE];
-	memset(szSend2, 0, sizeof(szSend2));
-	sprintf(szSend2, "%s", "Hello Server!See you Again!");
-	printf("%s\n", szSend2);
-	nBytesSend2 = ::send(pParam->sSocket, "Hello Server!See you Again!", strlen(szSend2), 0);
-	if (SOCKET_ERROR == nBytesSend2)
-	{
-		std::cout << "Send Message Failed..." << std::endl;
-		return 1;
-	}
-	//std::cout << "Send Second Data to Server Successful..." << std::endl;
-
-#elif 0
-	BASE_DATA stuSendData = { 0 };
-	stuSendData.stuRequestHead.nRequest = MAC_TEST_SEND;
-	strcpy(stuSendData.dataBuff, "Hello Server!");
-
-	//std::cout << (char*)&stuSendData << std::endl;
-	//std::cout << sizeof(stuSendData) << std::endl;
-
-	nBytesSend2 = ::send(pParam->sSocket, (char*)&stuSendData, sizeof(stuSendData), 0);
-	if (SOCKET_ERROR == nBytesSend2)
-	{
-		std::cout << "Send Message Failed..." << std::endl;
-		return 1;
-	}
-	std::cout << "Send Data to Server Successful..." << std::endl;
-
-	/*memset(&stuSendData, 0, sizeof(stuSendData));
-	stuSendData.stuRequestHead.nRequest = MAC_TEST_SEND_EX;
-	strcpy(stuSendData.dataBuff, "Hello Server! See you Again!");
-
-	nBytesSend = ::send(pParam->sSocket, (char*)&stuSendData, sizeof(stuSendData), 0);
-	if (SOCKET_ERROR == nBytesSend)
-	{
-	std::cout << "Send Message Failed..." << std::endl;
-	return 1;
-	}
-	std::cout << "Send Data to Server Successful..." << std::endl;*/
-#else
-
-#endif
-	//LeaveCriticalSection(&pClient->m_csSend);
 
 	return 0;
 }
@@ -352,25 +249,13 @@ void CClient::SendData(SOCKET socket, UINT nRequest, void* pData, int nDataLen)
 	SendData(socket, (char*)myDataPool.c_Bytes(), myDataPool.GetLength());
 }
 
-void CClient::GetHttp(SOCKET socket)
-{
-	std::string strGet = "GET /Test/Test1\r\n"
-		" HTTP/1.0\r\n"
-		"Host: http://127.0.0.1:80/web_end/\r\n"
-		"User-Agent: Mozilla/5.0 (Windows; U; Windows NT 5.1; zh-CN; rv:1.9.2.3) Gecko/20100401 Firefox/3.6.3\r\n"
-		"Connection:Keep - Alive\r\n"
-		"Accept-Encoding:gzip, deflate\r\n";
-	SendData(socket, strGet.c_str(), strGet.length());
-}
-
 int _tmain(int argc, _TCHAR* argv[])
 {
-#if 0
-	CClient* pClient = new CClient();
-#elif 1
-	CClient* pClient = new CClient("127.0.0.1", "127.0.0.1", 80, 1);
-#endif
-	pClient->Run();
+	for (auto i = 0; i < 1; i++)
+	{
+		CClient* pClient = new CClient("127.0.0.1", "127.0.0.1", 8888, 1);
+		pClient->Run();
+	}
 
 	getchar();
 	return 0;

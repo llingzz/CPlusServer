@@ -6,12 +6,16 @@
 
 #define				SERVER_NAME								"CPlusServer"
 
-#define				SAFE_DELETE(x)							{if(x!=NULL){delete x;x=NULL;}}
-#define				SAFE_RELEASE_SOCKET(x)					{if(x!=INVALID_SOCKET){closesocket(x);x=INVALID_SOCKET;}}
-#define				SAFE_RELEASE_HANDLE(x)					{if(x!=NULL&&x!=INVALID_HANDLE_VALUE){CloseHandle(x);x=NULL;}}
+#define				SAFE_DELETE(x)							{if(x!=nullptr){delete x;x=nullptr;}}
+#define				SAFE_DELETE_ARRAY(x)					{if(x!=nullptr){delete[] x;x=nullptr;}}
+#define				SAFE_RELEASE_SOCKET(x)					{if(x!=INVALID_SOCKET){::closesocket(x);x=INVALID_SOCKET;}}
+#define				SAFE_RELEASE_HANDLE(x)					{if(x!=NULL&&x!=INVALID_HANDLE_VALUE){::CloseHandle(x);x=INVALID_HANDLE_VALUE;}}
 
+#define				MAX_WORKER_THREAD_NUMBER				32					//最多工作线程数
+#define				ADD_ACCEPT_COUNT						32					//Accept投递不足时添加的Accept投递数
 #define				MAX_WORKER_THREADS_PER_PROCESS			2					//每个核心对应几个工作线程
-#define				MAX_MEANWHILE_POST_ACCEPT				1000				//同时投递的Accept请求数
+#define				MAX_MEANWHILE_POST_ACCEPT				1					//同时投递的Accept请求数
+#define				BASE_CBUFFER_SIZE						1024				//内存池基本数据缓存区大小
 #define				BASE_DATA_BUF_SIZE						(1 * 1024)			//基本数据缓存区大小
 #define				DATA_BUF_SIZE							(8 * 1024)			//数据缓冲区大小
 #define				ACCEPTEX_BYTES_OFFSET_SIZE				16					//AcceptEx字节偏移量
@@ -25,6 +29,15 @@
 #define				WM_DATA_TO_SEND							(WM_USER + 1000)
 #define				WM_DATA_TO_RECV							(WM_USER + 1001)
 
+// iocp底层协议
+#define				BASE_SOCKET_CONNECT						0					// 客户端连接
+#define				BASE_SOCKET_CLOSE						1					// 客户端断开
+#define				BASE_SOCKET_READ						2					// socket读操作
+#define				BASE_SOCKET_WRITE						3					// socket写操作
+
+//错误/返回码
+#define				THREAD_EXIT								0					// 线程退出
+
 //协议号
 #define				PROTOCOL_CLIENT_PLUSE					10000				//心跳
 
@@ -37,11 +50,6 @@ typedef enum tagOPE_TYPE{
 }OPE_TYPE;
 
 //工作者线程
-class CIOCPModule;
-typedef struct _tagWORKER_THREAD{
-	CIOCPModule*	pCIOCPModule;
-	int				nThreadId;
-}WORKER_THREAD, *LPWORKER_THREAD;
 class CPlusServer;
 typedef struct _tagWORKER_THREAD_PARAM{
 	CPlusServer*	pServer;
@@ -133,3 +141,65 @@ typedef struct _tagPLUSE_PACKAGE{
 	SOCKET			m_Socket;
 	time_t			m_tLastTick;
 }PLUSE_PACKAGE, *LPPLUSE_PACKAGE;
+
+///////////////////////////////////////////////////////////////////////////
+// 新定义区
+
+// 线程参数
+class CThread;
+typedef struct _tagThreadParam {
+	bool bSuccess;
+	HANDLE hEventHandle;
+	CThread* pThread;
+}ThreadParam, *LPThreadParam;
+
+// 数据包头
+typedef struct _tagDataHead {
+	WORD wIdentifier;
+	WORD wDataSize;
+}DataHead, *LPDataHead;
+
+// 网络请求上下文头
+typedef struct _tagContextHead{
+	SOCKET	hSocket;
+	LONG	lToken;
+}ContextHead, *LPContextHead;
+
+// 网络请求头
+typedef struct _tagRequestHead{
+	UINT nRequest;
+	UINT nRepeated;
+}RequestHead, *LPRequestHead;
+
+// 网络请求类
+class CRequest
+{
+	// 函数定义
+public:
+	CRequest()
+	{
+		m_Head = { 0 };
+		m_nDataLen = 0;
+		m_pDataPtr = nullptr;
+	}
+	CRequest(UINT nRequest, void* pData, int nLen)
+	{
+		m_Head.nRequest = nRequest;
+		m_nDataLen = nLen;
+		m_pDataPtr = pData;
+	}
+	virtual ~CRequest()
+	{
+		m_Head = { 0 };
+		m_nDataLen = 0;
+		delete m_pDataPtr;
+		m_pDataPtr = nullptr;
+	}
+
+	// 变量定义
+public:
+	RequestHead	m_Head;
+	UINT		m_nDataLen;
+	void*		m_pDataPtr;
+};
+///////////////////////////////////////////////////////////////////////////

@@ -42,9 +42,6 @@
     <ClInclude Include="redis\RedisManager.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="db\mysql\MySQLManager.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
     <ClInclude Include="db\DBOperator.h">
       <Filter>头文件</Filter>
     </ClInclude>
@@ -93,6 +90,9 @@
     <ClInclude Include="HttpManager.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="iocp.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -105,9 +105,6 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="redis\RedisManager.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="db\mysql\MySQLManager.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="db\DBOperator.cpp">
@@ -147,6 +144,9 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="HttpManager.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="iocp.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

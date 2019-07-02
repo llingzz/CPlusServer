@@ -15,7 +15,7 @@ void MQ_Subscriber::UnSubscribMQ(MQ_Manager* pMQManager, int nMessageID)
 }
 void MQ_Subscriber::HandleMessage(LPMQ_MESSAGE pMessage)
 {
-	CONSOLE_INFOS("%s Deal Message with nMessageID:%d, nMessageType:%d, szMessageContent:%s...", __FUNCTION__, pMessage->nMessageID, pMessage->nMessageType, pMessage->szMessageContent);
+	myLogConsoleI("%s Deal Message with nMessageID:%d, nMessageType:%d, szMessageContent:%s...", __FUNCTION__, pMessage->nMessageID, pMessage->nMessageType, pMessage->szMessageContent);
 }
 
 MQ_Manager::MQ_Manager()
@@ -195,8 +195,8 @@ bool CRabbitMQ::ConnectRabbitServer()
 
 	if (m_pConn)
 	{
-		CONSOLE_INFOS("%s m_pConn is NULL...", __FUNCTION__);
-		FILE_INFOS("%s m_pConn is NULL...", __FUNCTION__);
+		myLogConsoleI("%s m_pConn is NULL...", __FUNCTION__);
+		myLogFileI("%s m_pConn is NULL...", __FUNCTION__);
 		Disconnect();
 		return false;
 	}
@@ -204,8 +204,8 @@ bool CRabbitMQ::ConnectRabbitServer()
 	m_pSock = amqp_tcp_socket_new((amqp_connection_state_t)m_pConn);
 	if (NULL == m_pSock)
 	{
-		CONSOLE_INFOS("%s amqp_tcp_socket_new failed......", __FUNCTION__);
-		FILE_INFOS("%s amqp_tcp_socket_new failed......", __FUNCTION__);
+		myLogConsoleI("%s amqp_tcp_socket_new failed......", __FUNCTION__);
+		myLogFileI("%s amqp_tcp_socket_new failed......", __FUNCTION__);
 		Disconnect();
 		return false;
 	}
@@ -213,8 +213,8 @@ bool CRabbitMQ::ConnectRabbitServer()
 	int nStatus = amqp_socket_open_noblock((amqp_socket_t*)m_pSock, m_strHostName.c_str(), m_nPort, m_pConnTimeOut);
 	if (nStatus < 0)
 	{
-		CONSOLE_INFOS("%s amqp_socket_open_noblock failed... %s", __FUNCTION__);
-		FILE_INFOS("%s amqp_socket_open_noblock failed......", __FUNCTION__);
+		myLogConsoleI("%s amqp_socket_open_noblock failed... %s", __FUNCTION__);
+		myLogFileI("%s amqp_socket_open_noblock failed......", __FUNCTION__);
 		Disconnect();
 		return false;
 	}
@@ -222,8 +222,8 @@ bool CRabbitMQ::ConnectRabbitServer()
 	amqp_rpc_reply_t reply = amqp_login((amqp_connection_state_t)m_pConn, "/", 0, 131072, 0, AMQP_SASL_METHOD_PLAIN, m_strUserName.c_str(), m_strPassword.c_str());
 	if (AMQP_RESPONSE_NORMAL != reply.reply_type)
 	{
-		CONSOLE_INFOS("%s amqp_login failed...", __FUNCTION__);
-		FILE_INFOS("%s amqp_login failed......", __FUNCTION__);
+		myLogConsoleI("%s amqp_login failed...", __FUNCTION__);
+		myLogFileI("%s amqp_login failed......", __FUNCTION__);
 		amqp_connection_close_t* test = (amqp_connection_close_t*)reply.reply.decoded;
 		Disconnect();
 		return false;
@@ -245,16 +245,16 @@ bool CRabbitMQ::Disconnect()
 	amqp_rpc_reply_t reply = amqp_channel_close((amqp_connection_state_t)m_pConn, m_nChannel, AMQP_REPLY_SUCCESS);
 	if (AMQP_RESPONSE_NORMAL != reply.reply_type)
 	{
-		CONSOLE_INFOS("%s amqp_channel_close failed...", __FUNCTION__);
-		FILE_INFOS("%s amqp_channel_close failed......", __FUNCTION__);
+		myLogConsoleI("%s amqp_channel_close failed...", __FUNCTION__);
+		myLogFileI("%s amqp_channel_close failed......", __FUNCTION__);
 
 		return false;
 	}
 	reply = amqp_connection_close((amqp_connection_state_t)m_pConn, AMQP_REPLY_SUCCESS);
 	if (AMQP_RESPONSE_NORMAL != reply.reply_type)
 	{
-		CONSOLE_INFOS("%s amqp_connection_close failed...", __FUNCTION__);
-		FILE_INFOS("%s amqp_connection_close failed......", __FUNCTION__);
+		myLogConsoleI("%s amqp_connection_close failed...", __FUNCTION__);
+		myLogFileI("%s amqp_connection_close failed......", __FUNCTION__);
 
 		return false;
 	}
@@ -262,8 +262,8 @@ bool CRabbitMQ::Disconnect()
 	int nStatus = amqp_destroy_connection((amqp_connection_state_t)m_pConn);
 	if (nStatus < 0)
 	{
-		CONSOLE_INFOS("%s amqp_destroy_connection failed...", __FUNCTION__);
-		FILE_INFOS("%s amqp_destroy_connection failed......", __FUNCTION__);
+		myLogConsoleI("%s amqp_destroy_connection failed...", __FUNCTION__);
+		myLogFileI("%s amqp_destroy_connection failed......", __FUNCTION__);
 
 		return false;
 	}
@@ -314,8 +314,8 @@ bool CRabbitMQ::QueueDeclare(const string &strQueueName)
 {
 	if (NULL == m_pConn) 
 	{
-		CONSOLE_INFOS("%s m_pConn is null", __FUNCTION__);
-		FILE_INFOS("%s m_pConn is null", __FUNCTION__);
+		myLogConsoleI("%s m_pConn is null", __FUNCTION__);
+		myLogFileI("%s m_pConn is null", __FUNCTION__);
 		return false;
 	}
 
@@ -338,8 +338,8 @@ bool CRabbitMQ::QueueDeclare(const string &strQueueName)
 bool CRabbitMQ::QueueBind(const string &strQueueName, const string &strExchange, const string &strBindKey) {
 	if (NULL == m_pConn) 
 	{
-		CONSOLE_INFOS("%s m_pConn is null", __FUNCTION__);
-		FILE_INFOS("%s m_pConn is null", __FUNCTION__);
+		myLogConsoleI("%s m_pConn is null", __FUNCTION__);
+		myLogFileI("%s m_pConn is null", __FUNCTION__);
 		return false;
 	}
 
@@ -361,8 +361,8 @@ bool CRabbitMQ::QueueUnbind(const string &strQueueName, const string &strExchang
 {
 	if (NULL == m_pConn) 
 	{
-		CONSOLE_INFOS("%s m_pConn is null", __FUNCTION__);
-		FILE_INFOS("%s m_pConn is null", __FUNCTION__);
+		myLogConsoleI("%s m_pConn is null", __FUNCTION__);
+		myLogFileI("%s m_pConn is null", __FUNCTION__);
 		return false;
 	}
 
@@ -384,8 +384,8 @@ bool CRabbitMQ::QueueDelete(const string &strQueueName)
 {
 	if (NULL == m_pConn) 
 	{
-		CONSOLE_INFOS("%s m_pConn is null", __FUNCTION__);
-		FILE_INFOS("%s m_pConn is null", __FUNCTION__);
+		myLogConsoleI("%s m_pConn is null", __FUNCTION__);
+		myLogFileI("%s m_pConn is null", __FUNCTION__);
 		return false;
 	}
 
@@ -407,8 +407,8 @@ bool CRabbitMQ::SendMsg(const std::string& strExchange, const std::string strQue
 {
 	if (strMessage.size() <= 0)
 	{
-		CONSOLE_INFOS("%s strMessage.size() <= 0 ...", __FUNCTION__);
-		FILE_INFOS("%s strMessage.size() <= 0 ......", __FUNCTION__);
+		myLogConsoleI("%s strMessage.size() <= 0 ...", __FUNCTION__);
+		myLogFileI("%s strMessage.size() <= 0 ......", __FUNCTION__);
 		return false;
 	}
 
@@ -425,8 +425,8 @@ bool CRabbitMQ::SendMsg(const std::string& strExchange, const std::string strQue
 	{
 		if (!ConnectRabbitServer())
 		{
-			CONSOLE_INFOS("%s ReConnectRabbitServer failed...", __FUNCTION__);
-			FILE_INFOS("%s ReConnectRabbitServer failed......", __FUNCTION__);
+			myLogConsoleI("%s ReConnectRabbitServer failed...", __FUNCTION__);
+			myLogFileI("%s ReConnectRabbitServer failed......", __FUNCTION__);
 			return false;
 		}
 	}
@@ -449,13 +449,13 @@ bool CRabbitMQ::SendMsg(const std::string& strExchange, const std::string strQue
 		// 发布消息失败，自动补发
 		if (ConnectRabbitServer())
 		{
-			CONSOLE_INFOS("%s retrying to publish message...", __FUNCTION__);
-			FILE_INFOS("%s retrying to publish message......", __FUNCTION__);
+			myLogConsoleI("%s retrying to publish message...", __FUNCTION__);
+			myLogFileI("%s retrying to publish message......", __FUNCTION__);
 			auto nTimes = 1;
 			while (amqp_basic_publish((amqp_connection_state_t)m_pConn, m_nChannel, _exchange, _route_key, _mandatory, _immediate, &props, _message) < 0)
 			{
-				CONSOLE_INFOS("%s retrying to publish message...retry times %d ", __FUNCTION__, nTimes);
-				FILE_INFOS("%s retrying to publish message......retry times %d ", __FUNCTION__, nTimes);
+				myLogConsoleI("%s retrying to publish message...retry times %d ", __FUNCTION__, nTimes);
+				myLogFileI("%s retrying to publish message......retry times %d ", __FUNCTION__, nTimes);
 				nTimes++;
 				Sleep(200);
 			}
@@ -469,8 +469,8 @@ bool CRabbitMQ::RecvMsg(const string &strQueueName, struct timeval* timeout)
 {
 	if (NULL == m_pConn)
 	{
-		CONSOLE_INFOS("%s m_pConn is null", __FUNCTION__);
-		FILE_INFOS("%s m_pConn is null", __FUNCTION__);
+		myLogConsoleI("%s m_pConn is null", __FUNCTION__);
+		myLogFileI("%s m_pConn is null", __FUNCTION__);
 		return false;
 	}
 
@@ -511,8 +511,8 @@ bool CRabbitMQ::RecvMsg(const string &strQueueName, struct timeval* timeout)
 			reply.reply_type == AMQP_RESPONSE_NORMAL)
 		{
 			std::string strMsg((char*)envelope.message.body.bytes, envelope.message.body.len);
-			CONSOLE_INFOS("%s get message %s", __FUNCTION__, strMsg.c_str());
-			CONSOLE_INFOS("%s remain message number %d", __FUNCTION__, nCount++);
+			myLogConsoleI("%s get message %s", __FUNCTION__, strMsg.c_str());
+			myLogConsoleI("%s remain message number %d", __FUNCTION__, nCount++);
 
 			// ack接收到的消息
 			int32_t _multiple = 0;										// 1 批量处理，一次性ack所有小于delivery_tag的消息 0 不批量处理
@@ -540,7 +540,7 @@ unsigned int __stdcall CRabbitMQ::HeartBeatFunc(LPVOID pParam)
 }
 void CRabbitMQ::HeartBeatThread()
 {
-	CONSOLE_INFOS("%s start heart beats...", __FUNCTION__);
+	myLogConsoleI("%s start heart beats...", __FUNCTION__);
 	time_t tLastTick = time(NULL);
 	while (m_bHeartBeatFlag)
 	{
@@ -555,7 +555,7 @@ void CRabbitMQ::HeartBeatThread()
 			if (m_pConn)
 			{
 				amqp_send_frame((amqp_connection_state_t)m_pConn, &heartbeat);
-				CONSOLE_INFOS("%s send heart beats...ticks %ld", __FUNCTION__, tNowTick);
+				myLogConsoleI("%s send heart beats...ticks %ld", __FUNCTION__, tNowTick);
 			}
 
 			tLastTick = tNowTick;
@@ -566,7 +566,6 @@ void CRabbitMQ::HeartBeatThread()
 		}
 	}
 }
-
 bool CRabbitMQ::AddQueue(const std::string strQueueName)
 {
 	CAutoLock lock(&m_csLock);
@@ -578,8 +577,8 @@ bool CRabbitMQ::StartConsume()
 {
 	if (NULL == m_pConn)
 	{
-		CONSOLE_INFOS("%s m_pConn is null", __FUNCTION__);
-		FILE_INFOS("%s m_pConn is null", __FUNCTION__);
+		myLogConsoleI("%s m_pConn is null", __FUNCTION__);
+		myLogFileI("%s m_pConn is null", __FUNCTION__);
 		return false;
 	}
 
@@ -596,7 +595,7 @@ bool CRabbitMQ::StartConsume()
 		int32_t _prefetch_size = 0;																				// 默认为0
 		int16_t _prefetch_count = 1;																			// 表示rabbitmq不会同时给一个消费者推送多于_prefetch_count个消息，即如果有_prefetch_count和消息还没有ack，则该consumer将阻塞，知道有消息ack
 		int32_t _global = 0;																					// 是否将上面设置应用到channel
-		amqp_basic_qos((amqp_connection_state_t)m_pConn, m_nChannel, _prefetch_size, _prefetch_count, _global);
+		amqp_basic_qos((amqp_connection_state_t)m_pConn, m_nChannel, _prefetch_size, _prefetch_count, _global);	// 该api的参数设置会极大的影响到rabbitmq的性能，详情可参见:http://www.rabbitmq.com/blog/2012/05/11/some-queuing-theory-throughput-latency-and-bandwidth/
 
 		amqp_bytes_t _queue = amqp_cstring_bytes(m_vectQueueMap.at(i).c_str());											// 消息队列名称
 		amqp_bytes_t _tags = amqp_empty_bytes;																	// consumer标识
@@ -647,8 +646,8 @@ void CRabbitMQ::ConsumeThread()
 		if (reply.reply_type == AMQP_RESPONSE_NORMAL)
 		{
 			std::string strMsg((char*)envelope.message.body.bytes, envelope.message.body.len);
-			CONSOLE_INFOS("%s get message %s", __FUNCTION__, strMsg.c_str());
-			CONSOLE_INFOS("%s remain message number %d", __FUNCTION__, nCount++);
+			myLogConsoleI("%s get message %s", __FUNCTION__, strMsg.c_str());
+			myLogConsoleI("%s remain message number %d", __FUNCTION__, nCount++);
 
 			// ack接收到的消息
 			int32_t _multiple = 0;										// 1 批量处理，一次性ack所有小于delivery_tag的消息 0 不批量处理
@@ -674,12 +673,12 @@ bool CRabbitMQ::ErrorMsg(amqp_rpc_reply_t x)
 	case AMQP_RESPONSE_NORMAL:
 		return true;
 	case AMQP_RESPONSE_NONE:
-		CONSOLE_INFOS("%s missing RPC reply type!", __FUNCTION__);
-		FILE_INFOS("%s missing RPC reply type!", __FUNCTION__);
+		myLogConsoleI("%s missing RPC reply type!", __FUNCTION__);
+		myLogFileI("%s missing RPC reply type!", __FUNCTION__);
 		break;
 	case AMQP_RESPONSE_LIBRARY_EXCEPTION:
-		CONSOLE_INFOS("%s %s", __FUNCTION__, amqp_error_string2(x.library_error));
-		FILE_INFOS("%s %s", __FUNCTION__, amqp_error_string2(x.library_error));
+		myLogConsoleI("%s %s", __FUNCTION__, amqp_error_string2(x.library_error));
+		myLogFileI("%s %s", __FUNCTION__, amqp_error_string2(x.library_error));
 		break;
 	case AMQP_RESPONSE_SERVER_EXCEPTION:
 		switch (x.reply.id) 
@@ -687,20 +686,20 @@ bool CRabbitMQ::ErrorMsg(amqp_rpc_reply_t x)
 			case AMQP_CONNECTION_CLOSE_METHOD:
 			{
 				amqp_connection_close_t *m = (amqp_connection_close_t *)x.reply.decoded;
-				CONSOLE_INFOS("%s server connection error %d", __FUNCTION__, m->reply_code, (int)m->reply_text.len);
-				FILE_INFOS("%s server connection error %d", __FUNCTION__, m->reply_code, (int)m->reply_text.len);
+				myLogConsoleI("%s server connection error %d", __FUNCTION__, m->reply_code, (int)m->reply_text.len);
+				myLogFileI("%s server connection error %d", __FUNCTION__, m->reply_code, (int)m->reply_text.len);
 			}
 			break;
 			case AMQP_CHANNEL_CLOSE_METHOD:
 			{
 				amqp_channel_close_t *m = (amqp_channel_close_t *)x.reply.decoded;
-				CONSOLE_INFOS("%s server channel error %d", __FUNCTION__, m->reply_code, (int)m->reply_text.len);
-				FILE_INFOS("%s server channel error %d", __FUNCTION__, m->reply_code, (int)m->reply_text.len);
+				myLogConsoleI("%s server channel error %d", __FUNCTION__, m->reply_code, (int)m->reply_text.len);
+				myLogFileI("%s server channel error %d", __FUNCTION__, m->reply_code, (int)m->reply_text.len);
 			}
 			break;
 			default:
-				CONSOLE_INFOS("%s unknown server error, method id 0x%X", __FUNCTION__, x.reply.id);
-				FILE_INFOS("%s unknown server error, method id 0x%X", __FUNCTION__, x.reply.id);
+				myLogConsoleI("%s unknown server error, method id 0x%X", __FUNCTION__, x.reply.id);
+				myLogFileI("%s unknown server error, method id 0x%X", __FUNCTION__, x.reply.id);
 			break;
 		}
 		break;
@@ -726,4 +725,95 @@ CRabbitMQ_Consumer::CRabbitMQ_Consumer()
 CRabbitMQ_Consumer::~CRabbitMQ_Consumer()
 {
 	m_objRabbitMQ->Disconnect();
+}
+
+CQueueThread::CQueueThread(HANDLE hCompletionPort)
+{
+	m_hCompletionPort = hCompletionPort;
+	memset(m_szBuffer, 0, sizeof(m_szBuffer));
+}
+CQueueThread::~CQueueThread()
+{
+	::CloseHandle(m_hCompletionPort);
+	m_hCompletionPort = NULL;
+	memset(m_szBuffer, 0, sizeof(m_szBuffer));
+}
+bool CQueueThread::Run()
+{
+	DWORD dwTrancferred = 0;
+	OVERLAPPED* pOverlapped = NULL;
+	CQueueService* pQueueService = NULL;
+
+	if (::GetQueuedCompletionStatus(m_hCompletionPort, &dwTrancferred, (PULONG_PTR)&pQueueService, &pOverlapped, INFINITE))
+	{
+		/*if (NULL == pQueueService)
+		{
+			return false;
+		}
+		DataHead stuDataHead = { 0 };
+		if (pQueueService->m_DataPool.GetData(stuDataHead, m_szBuffer, sizeof(m_szBuffer)))
+		{
+			pQueueService->OnRequest((void*)m_szBuffer);
+		}*/
+		myLogConsoleI("GetQueuedCompletionStatus");
+	}
+
+	return true;
+}
+
+CQueueService::CQueueService()
+{
+	m_hCompletionPort = NULL;
+}
+CQueueService::~CQueueService()
+{
+	StopService();
+}
+bool CQueueService::StartService()
+{
+	m_hCompletionPort = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, NULL, 1);
+	if (NULL == m_hCompletionPort)
+	{
+		myLogConsoleE("完成端口创建失败...");
+		return false;
+	}
+
+	m_pQueueServiceThread = new CQueueThread(m_hCompletionPort);
+	m_pQueueServiceThread->StartThread();
+
+	return true;
+}
+bool CQueueService::StopService()
+{
+	if (NULL != m_hCompletionPort)
+	{
+		::PostQueuedCompletionStatus(m_hCompletionPort, 0, NULL, NULL);
+	}
+	m_pQueueServiceThread->StopThread();
+
+	if (NULL != m_hCompletionPort)
+	{
+		::CloseHandle(m_hCompletionPort);
+		m_hCompletionPort = NULL;
+	}
+
+	return true;
+}
+bool CQueueService::AddToQueue(WORD wIdentifier, void* pData, WORD wDataLen)
+{
+	CAutoLock lock(&m_csLock);
+	m_DataPool.AddData(wIdentifier, pData, wDataLen);
+	::PostQueuedCompletionStatus(m_hCompletionPort, wDataLen, (ULONG_PTR)this, NULL);
+	myLogConsoleI("PostQueuedCompletionStatus");
+
+	return true;
+}
+bool CQueueService::OnRequest(void* pParam)
+{
+	
+	return true;
+}
+void CQueueService::DoWorkLoop()
+{
+	
 }
