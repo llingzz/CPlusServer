@@ -1,6 +1,7 @@
 #pragma once
 
 typedef enum IoType {
+	enIoInit,
 	enIoAccept,
 	enIoWrite,
 	enIoRead,
@@ -74,6 +75,7 @@ public:
 	{
 		m_pBuffer = NULL;
 		m_pNext = NULL;
+		m_ioType = enIoInit;
 	}
 	virtual ~CSocketBuffer()
 	{
@@ -106,6 +108,8 @@ public:
 	CSocketBuffer*    m_pWaitingRecv;
 	CSocketBuffer*    m_pWaitingSend;
 
+	UINT              m_nPacketNo;
+	UINT              m_nSessionID;
 	CBuffer           m_objDataBuf;
 
 	CRITICAL_SECTION  m_csLock;
@@ -126,6 +130,8 @@ public:
 		m_nPostedRecv = 0;
 		m_pWaitingRecv = NULL;
 		m_pWaitingSend = NULL;
+		m_nPacketNo = 0;
+		m_nSessionID = 0;
 		::InitializeCriticalSection(&m_csLock);
 		m_pNext = NULL;
 	}
@@ -187,6 +193,52 @@ public:
 	}
 };
 
+class REQUEST;
+typedef REQUEST* LPREQUEST;
+class REQUEST
+{
+public:
+	REQUEST()
+	{
+		m_stHead = { 0 };
+		m_nDataLen = 0;
+		m_pDataPtr = nullptr;
+	}
+	REQUEST(UINT nRequest, void* pData, int nLen)
+	{
+		m_stHead.nRequest = nRequest;
+		m_nDataLen = nLen;
+		m_pDataPtr = pData;
+	}
+	virtual ~REQUEST()
+	{
+		m_stHead = { 0 };
+		m_nDataLen = 0;
+		delete m_pDataPtr;
+		m_pDataPtr = nullptr;
+	}
+public:
+	REQUEST_HEAD m_stHead;
+	UINT         m_nDataLen;
+	void*        m_pDataPtr;
+};
+
+class CSessionData {
+public:
+	CSessionData(){}
+	virtual ~CSessionData(){}
+
+	BOOL CheckCRC32(void* pData, UINT nDataLen) { return TRUE; }
+	BOOL ConstructRequest(void* pDataPtr, UINT nDataLen, LPCONTEXT_HEAD& lpContext, LPREQUEST& lpRequest) { return TRUE; }
+
+public:
+	UINT  m_uiPacketNo;
+	UINT  m_uiPacketLen;
+	UINT  m_uiSessionID;
+	BOOL  m_bUseCRC32;
+	DWORD m_dwCRC32;
+};
+
 class CIocpServer : public CIocpWorker{
 public:
 	CIocpServer();
@@ -200,9 +252,9 @@ public:
 	virtual BOOL PostRecv(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
 	virtual BOOL PostSend(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
 
-	virtual BOOL OnReceiveData(CSocketContext* pContext, CSocketBuffer* pBuffer);
-	virtual BOOL OnVerifyData(CSocketContext* pContext, CSocketBuffer* pBuffer);
-	virtual BOOL OnHandleData(CSocketContext* pContext, CSocketBuffer* pBuffer);
+	virtual BOOL OnReceiveData(CSocketContext* pContext, CSocketBuffer* pBuffer, CSessionData& rSessionData);
+	virtual BOOL OnVerifyData(CSocketContext* pContext, CSocketBuffer* pBuffer, CSessionData& rSessionData);
+	virtual BOOL OnHandleData(CSocketContext* pContext, CSocketBuffer* pBuffer, CSessionData& rSessionData);
 	virtual BOOL SendData(CSocketContext* pContext, LPVOID pData, UINT nDataLen);
 
 	virtual void HandleIo(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwTrans, DWORD dwError);

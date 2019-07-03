@@ -22,26 +22,11 @@ typedef struct _stuWORKER_THREAD_PARAM
 	char szBuffer[MAX_DATA_BUF_SIZE];
 }WORKER_THREAD_PARAM, *LPWORKER_THREAD_PARAM;
 
-typedef struct _stuREQUEST_HEAD {
-	UINT nRequest;
-}REQUEST_HEAD, *LPREQUEST_HEAD;
-
-typedef struct _stuBASE_DATA {
-	int stuRequestHead;
-	CHAR dataBuff[MAX_DATA_BUF_SIZE];
-}BASE_DATA, *LPBASE_DATA;
-
-typedef struct _tagMESSAGE_HEAD{
-	SOCKET	hSocket;
-	LONG	lSession;
-	LONG	lTokenID;
-}MESSAGE_HEAD, *LPMESSAGE_HEAD;
-
-typedef struct _tagMESSAGE_CONTENT{
-	UINT	nRequest;
-	int		nDataLen;
-	void*	pDataPtr;
-}MESSAGE_CONTENT, *LPMESSAGE_CONTENT;
+typedef struct _tagPACKET_HEAD {
+	UINT uiPacketNo;
+	UINT uiMsgType;
+	UINT uiPacketLen;
+}PACKET_HEAD, *LPPACKET_HEAD;
 
 class CClient
 {

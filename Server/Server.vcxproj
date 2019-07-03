@@ -91,8 +91,8 @@
     <ClInclude Include="db\DBCommon.h" />
     <ClInclude Include="db\DBOperator.h" />
     <ClInclude Include="HttpManager.h" />
-    <ClInclude Include="include\Functions.h" />
-    <ClInclude Include="include\Utilities.h" />
+    <ClInclude Include="include\func.h" />
+    <ClInclude Include="include\utils.h" />
     <ClInclude Include="iocp.h" />
     <ClInclude Include="redis\RedisManager.h" />
     <ClInclude Include="redis\RedisOperator.h" />

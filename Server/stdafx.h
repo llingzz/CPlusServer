@@ -25,8 +25,8 @@ using namespace std;
 // TODO:  在此处引用程序需要的其他头文件
 #include "common/CommonDef.h"
 #include "common/CommonReq.h"
-#include "include/Functions.h"
-#include "include/Utilities.h"
+#include "include/func.h"
+#include "include/utils.h"
 #include "include/json/json.h"
 #include "threadpool/ThreadPool.h"
 #include "threadpool/MessageQueue.h"

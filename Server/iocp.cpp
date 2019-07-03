@@ -346,19 +346,70 @@ BOOL CIocpServer::PostSend(CSocketContext* pContext, CSocketBuffer* pBuffer, DWO
 	return TRUE;
 }
 
-BOOL CIocpServer::OnReceiveData(CSocketContext* pContext, CSocketBuffer* pBuffer)
+BOOL CIocpServer::OnReceiveData(CSocketContext* pContext, CSocketBuffer* pBuffer, CSessionData& rSessionData)
 {
-	/*收到数据包，进行校验和处理*/
+	/*收到数据包，将数据放入缓存区*/
+	UINT uiPacketHeadLen = sizeof(PACKET_HEAD);
+	::EnterCriticalSection(&(pContext->m_csLock));
+	UINT uiDataBufLen = pContext->m_objDataBuf.GetBufferLen();
+	if (pBuffer->m_nBufferLen > 0)
+	{
+		pContext->m_objDataBuf.Write(pBuffer->m_pBuffer, pBuffer->m_nBufferLen);
+		uiDataBufLen += pBuffer->m_nBufferLen;
+		pContext->m_nPacketNo++;
+		
+	}
+	while (uiDataBufLen > uiPacketHeadLen)
+	{
+		/*长度大于包头长度，取得包头数据*/
+		BYTE pTemp[sizeof(PACKET_HEAD)] = { 0 };
+		pContext->m_objDataBuf.Read((PBYTE)&pTemp, sizeof(PACKET_HEAD), FALSE);
+		uiDataBufLen -= uiPacketHeadLen;
+		LPPACKET_HEAD lpPacketHead = (LPPACKET_HEAD)(PBYTE(&pTemp));
+		if (lpPacketHead->uiPacketLen <= uiDataBufLen)
+		{
+			/*缓存区剩下的数据长度大于或等于包头所指的包体长度，取出完整数据包*/
+			UINT uiDataLen = sizeof(PACKET_HEAD) + lpPacketHead->uiPacketLen;
+			// TODO：pData使用完之后记得释放
+			PBYTE pData = new BYTE[uiDataLen];
+
+			pContext->m_objDataBuf.Read(pData, uiDataLen);
+			uiDataBufLen = pContext->m_objDataBuf.GetBufferLen();
+			pContext->m_nSessionID++;
+
+			LPPACKET_HEAD lpHead = (LPPACKET_HEAD)(PBYTE(pData));
+			rSessionData.m_uiPacketNo = pContext->m_nPacketNo;
+			rSessionData.m_uiSessionID = pContext->m_nSessionID;
+			rSessionData.m_uiPacketLen = lpHead->uiPacketLen;
+
+			/*数据包进行校验*/
+			BOOL bVerify = OnVerifyData(pContext, pBuffer, rSessionData);
+			if(!bVerify)
+			{
+				continue;
+			}
+			/*数据包处理*/
+			OnHandleData(pContext, pBuffer, rSessionData);
+		}
+		else
+		{
+			/*缓存区剩下数据长度小于包头所指的包体长度，无法取出完整数据包，退出*/
+			break;
+		}
+	}
+	::LeaveCriticalSection(&(pContext->m_csLock));
 	return TRUE;
 }
 
-BOOL CIocpServer::OnVerifyData(CSocketContext* pContext, CSocketBuffer* pBuffer)
+BOOL CIocpServer::OnVerifyData(CSocketContext* pContext, CSocketBuffer* pBuffer, CSessionData& rSessionData)
 {
-	/*数据包校验*/
+	/*数据包校验（CRC32），校验失败，服务端主动关闭套接字sockte连接*/
+
+
 	return TRUE;
 }
 
-BOOL CIocpServer::OnHandleData(CSocketContext* pContext, CSocketBuffer* pBuffer)
+BOOL CIocpServer::OnHandleData(CSocketContext* pContext, CSocketBuffer* pBuffer, CSessionData& rSessionData)
 {
 	/*数据包处理*/
 	return TRUE;
@@ -552,11 +603,12 @@ void CIocpServer::HandleIoRead(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwTran
 			while (pHandleBuffer)
 			{
 				/*移动读标记为到下一个CSocketBuffer， 释放完成的CSocketBuffer*/
-				OnReceiveData(pContext, pBuffer);
-				myLogConsoleI("%s:读", __FUNCTION__);
 				::InterlockedIncrement(&pContext->m_nCurrentReadSerialNo);
+				CSessionData session;
+				OnReceiveData(pContext, pBuffer, session);
 				ReleaseSocketBuffer(pHandleBuffer);
 				pHandleBuffer = GetSocketBuffer(pContext, NULL);
+				myLogConsoleI("%s:读", __FUNCTION__);
 			}
 
 			/*投递一个新的Read消息， 投递失败关闭连接*/

@@ -30,13 +30,7 @@
     <ClInclude Include="common\CommonDef.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="include\Utilities.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
     <ClInclude Include="timer\Timer.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="include\Functions.h">
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="redis\RedisManager.h">
@@ -91,6 +85,12 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="iocp.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="include\utils.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="include\func.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

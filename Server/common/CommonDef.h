@@ -41,6 +41,43 @@
 //协议号
 #define				PROTOCOL_CLIENT_PLUSE					10000				//心跳
 
+//日志级别枚举
+typedef enum enLogLevel {
+	enDEFAULT = 0,
+	enINFO,
+	enDEBUG,
+	enWARN,
+	enTRACE,
+	enERROR,
+	enFATAL,
+};
+
+//日志宏定义
+#if _DEBUG
+//文件日志快捷宏
+#define		myLogFileI(fmt, ...)		CLog::GetInstance()->SetLogLevel(enINFO)->WriteLogFile(fmt, __VA_ARGS__)
+#define		myLogFileD(fmt, ...)		CLog::GetInstance()->SetLogLevel(enDEBUG)->WriteLogFile(fmt, __VA_ARGS__)
+#define		myLogFileW(fmt, ...)		CLog::GetInstance()->SetLogLevel(enWARN)->WriteLogFile(fmt, __VA_ARGS__)
+#define		myLogFileT(fmt, ...)		CLog::GetInstance()->SetLogLevel(enTRACE)->WriteLogFile(fmt, __VA_ARGS__)
+#define		myLogFileE(fmt, ...)		CLog::GetInstance()->SetLogLevel(enERROR)->WriteLogFile(fmt, __VA_ARGS__)
+#define		myLogFileF(fmt, ...)		CLog::GetInstance()->SetLogLevel(enFATAL)->WriteLogFile(fmt, __VA_ARGS__)
+//控制台日志快捷宏
+#define		myLogConsoleI(fmt, ...)		CLog::GetInstance()->SetLogLevel(enINFO)->WriteLogConsole(fmt, __VA_ARGS__)
+#define		myLogConsoleD(fmt, ...)		CLog::GetInstance()->SetLogLevel(enDEBUG)->WriteLogConsole(fmt, __VA_ARGS__)
+#define		myLogConsoleW(fmt, ...)		CLog::GetInstance()->SetLogLevel(enWARN)->WriteLogConsole(fmt, __VA_ARGS__)
+#define		myLogConsoleT(fmt, ...)		CLog::GetInstance()->SetLogLevel(enTRACE)->WriteLogConsole(fmt, __VA_ARGS__)
+#define		myLogConsoleE(fmt, ...)		CLog::GetInstance()->SetLogLevel(enERROR)->WriteLogConsole(fmt, __VA_ARGS__)
+#define		myLogConsoleF(fmt, ...)		CLog::GetInstance()->SetLogLevel(enFATAL)->WriteLogConsole(fmt, __VA_ARGS__)
+#else
+//文件日志快捷宏
+#define		myLogFileI(fmt, ...)		CLog::GetInstance()->SetLogLevel(enINFO)->WriteLogFileEx(fmt, __VA_ARGS__)
+#define		myLogFileD(fmt, ...)		CLog::GetInstance()->SetLogLevel(enDEBUG)->WriteLogFileEx(fmt, __VA_ARGS__)
+#define		myLogFileW(fmt, ...)		CLog::GetInstance()->SetLogLevel(enWARN)->WriteLogFileEx(fmt, __VA_ARGS__)
+#define		myLogFileT(fmt, ...)		CLog::GetInstance()->SetLogLevel(enTRACE)->WriteLogFileEx(fmt, __VA_ARGS__)
+#define		myLogFileE(fmt, ...)		CLog::GetInstance()->SetLogLevel(enERROR)->WriteLogFileEx(fmt, __VA_ARGS__)
+#define		myLogFileF(fmt, ...)		CLog::GetInstance()->SetLogLevel(enFATAL)->WriteLogFileEx(fmt, __VA_ARGS__)
+#endif
+
 //完成端口上投递IO操作类型
 typedef enum tagOPE_TYPE{
 	OPE_NULL,		//默认值
@@ -164,42 +201,4 @@ typedef struct _tagContextHead{
 	SOCKET	hSocket;
 	LONG	lToken;
 }ContextHead, *LPContextHead;
-
-// 网络请求头
-typedef struct _tagRequestHead{
-	UINT nRequest;
-	UINT nRepeated;
-}RequestHead, *LPRequestHead;
-
-// 网络请求类
-class CRequest
-{
-	// 函数定义
-public:
-	CRequest()
-	{
-		m_Head = { 0 };
-		m_nDataLen = 0;
-		m_pDataPtr = nullptr;
-	}
-	CRequest(UINT nRequest, void* pData, int nLen)
-	{
-		m_Head.nRequest = nRequest;
-		m_nDataLen = nLen;
-		m_pDataPtr = pData;
-	}
-	virtual ~CRequest()
-	{
-		m_Head = { 0 };
-		m_nDataLen = 0;
-		delete m_pDataPtr;
-		m_pDataPtr = nullptr;
-	}
-
-	// 变量定义
-public:
-	RequestHead	m_Head;
-	UINT		m_nDataLen;
-	void*		m_pDataPtr;
-};
 ///////////////////////////////////////////////////////////////////////////
