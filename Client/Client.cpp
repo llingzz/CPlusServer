@@ -240,9 +240,6 @@ unsigned int __stdcall CClient::SendThread(LPVOID lpParam)
 	{
 		Sleep(2500);
 		pClient->SendData(pParam->sSocket, 10001, "hello world!", sizeof("hello world!"));
-		/*Sleep(2500);
-		pClient->SendData(pParam->sSocket, 10001, "hello world!", sizeof("hello world!"));
-		break;*/
 	}
 
 	return 0;
@@ -306,23 +303,9 @@ int _tmain(int argc, _TCHAR* argv[])
 {
 	for (auto i = 0; i < 1; i++)
 	{
-		CClient* pClient = new CClient("127.0.0.1", "127.0.0.1", 60494, 1);
+		CClient* pClient = new CClient("127.0.0.1", "127.0.0.1", 8888, 1);
 		pClient->Run();
 	}
-
-	/*MESSAGE_HEAD stuMessageHead = { 0 };
-	MESSAGE_CONTENT stuMessageContent = { 0 };
-
-	CBufferEx myDataPool;
-	myDataPool.Write((PBYTE)&stuMessageHead, sizeof(MESSAGE_HEAD));
-	myDataPool.Write((PBYTE)&stuMessageContent, sizeof(MESSAGE_CONTENT));
-
-	auto test = getCRC((char*)myDataPool.c_Bytes(), myDataPool.GetLength());
-	stuMessageContent.nDataLen = 1;
-	CBufferEx myDataPoolEx;
-	myDataPoolEx.Write((PBYTE)&stuMessageHead, sizeof(MESSAGE_HEAD));
-	myDataPoolEx.Write((PBYTE)&stuMessageContent, sizeof(MESSAGE_CONTENT));
-	auto test1 = getCRC((char*)myDataPoolEx.c_Bytes(), myDataPoolEx.GetLength());*/
 
 	getchar();
 	return 0;

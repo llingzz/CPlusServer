@@ -18,6 +18,7 @@ typedef struct _tagPACKET_HEAD{
 	UINT uiMsgType;
 	UINT uiPacketLen;
 	BOOL bUseCRC32;
+	DWORD dwCRC32;
 }PACKET_HEAD, *LPPACKET_HEAD;
 /*套接字上下文头信息*/
 typedef struct _tagCONTEXT_HEAD{

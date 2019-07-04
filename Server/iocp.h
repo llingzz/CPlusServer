@@ -232,11 +232,8 @@ public:
 	BOOL ConstructRequest(void* pDataPtr, UINT nDataLen, LPCONTEXT_HEAD& lpContext, LPREQUEST& lpRequest) { return TRUE; }
 
 public:
-	UINT  m_uiPacketNo;
-	UINT  m_uiPacketLen;
-	UINT  m_uiSessionID;
-	BOOL  m_bUseCRC32;
-	DWORD m_dwCRC32;
+	PACKET_HEAD m_stuHead;
+	UINT m_uiSessionID;
 };
 
 class CIocpServer : public CIocpWorker{
@@ -247,6 +244,8 @@ public:
 	virtual BOOL InitializeMembers();
 	virtual BOOL Initialize(LPCTSTR lpSzIp, UINT nPort, UINT nInitAccepts, UINT nMaxAccpets, UINT nMaxSocketBufferListCount, UINT nMaxSocketContextListCount, UINT nMaxSendCount, UINT nThreads, UINT nConcurrency, UINT nMaxConnections);
 	virtual BOOL Shutdown();
+
+	virtual BOOL OnRequest(void* lpParam1, void* lpParam2);
 
 	virtual BOOL PostAccept(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
 	virtual BOOL PostRecv(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);

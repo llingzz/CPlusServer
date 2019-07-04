@@ -26,6 +26,8 @@ typedef struct _tagPACKET_HEAD {
 	UINT uiPacketNo;
 	UINT uiMsgType;
 	UINT uiPacketLen;
+	BOOL bUseCRC32;
+	DWORD dwCRC32;
 }PACKET_HEAD, *LPPACKET_HEAD;
 
 class CClient
