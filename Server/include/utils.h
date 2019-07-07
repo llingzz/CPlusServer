@@ -238,7 +238,7 @@ private:
 			strcpy(szLoglevel, "INFOS");
 			break;
 		}
-		sprintf_s(m_szLogRrefix, "%s[%s]:", m_szLogRrefix, szLoglevel);
+		sprintf_s(m_szLogRrefix, "%s[%5d][%s]:", m_szLogRrefix, ::GetCurrentThreadId(), szLoglevel);
 	}
 	void GetFilePathAndName()
 	{
@@ -317,7 +317,7 @@ public:
 				if(bUpdate)
 				{
 					/*如果需要，读取完数据前移*/
-					memcpy(m_pBase, m_pBase + uiSize, m_uiSize - uiSize);
+					memmove(m_pBase, m_pBase + uiSize, m_uiSize - uiSize);
 					m_pPtr -= uiSize;
 				}
 				return uiSize;

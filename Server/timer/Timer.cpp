@@ -36,7 +36,7 @@ void TimeWheel::UpdateTimer()
 	}
 }
 
-TimeWheelNode* TimeWheel::SetTimer(unsigned int uiMilliSeconds, TimeOutCallback TOC, void* pParam, CancelCallback CC)
+TimeWheelNode* TimeWheel::SetTimer(unsigned int uiMilliSeconds, TimeOutCB TOC, void* pParam, CancelCB CC)
 {
 	CAutoLock lock(&m_csLock);
 	uiMilliSeconds /= TIME_INTERVAL;

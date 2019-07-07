@@ -41,6 +41,8 @@ public:
 	void Stop();
 	void CleanUp();
 
+	void TestIocpConnect();
+
 public:
 	BOOL LoadSocketLib();
 	void UnloadSocketLib();
@@ -51,9 +53,6 @@ private:
 
 	void SendData(SOCKET socket, const char* pData, int nDataLen);
 	void SendData(SOCKET socket, UINT nRequest, void* pData, int nDataLen);
-
-	//void PostHttp(std::string data);
-	void GetHttp(SOCKET socket);
 
 	static unsigned int __stdcall ConnectionThread(LPVOID lpParam);
 	static unsigned int __stdcall SendThread(LPVOID lpParam);

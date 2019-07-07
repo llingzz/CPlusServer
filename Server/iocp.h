@@ -5,6 +5,14 @@ typedef enum IoType {
 	enIoAccept,
 	enIoWrite,
 	enIoRead,
+	enIoDisconnect,
+};
+
+typedef enum MsgType {
+	enGreeting,
+	enRequest,
+	enResponse,
+	enAcknowledge,
 };
 
 // 工作队列数据参数
@@ -105,12 +113,17 @@ public:
 	UINT              m_nPostedSend;
 	UINT              m_nPostedRecv;
 
+	UINT              m_nPendingRecv;
 	CSocketBuffer*    m_pWaitingRecv;
+	UINT              m_nPendingSend;
 	CSocketBuffer*    m_pWaitingSend;
 
 	UINT              m_nPacketNo;
 	UINT              m_nSessionID;
 	CBuffer           m_objDataBuf;
+
+	CBuffer           m_objReqBuf;
+	CBuffer           m_objResBuf;
 
 	CRITICAL_SECTION  m_csLock;
 
@@ -128,7 +141,9 @@ public:
 		m_nCurrentReadSerialNo = 0;
 		m_nPostedSend = 0;
 		m_nPostedRecv = 0;
+		m_nPendingRecv = 0;
 		m_pWaitingRecv = NULL;
+		m_nPendingSend = 0;
 		m_pWaitingSend = NULL;
 		m_nPacketNo = 0;
 		m_nSessionID = 0;
@@ -159,9 +174,9 @@ public:
 	HANDLE                     m_hAcceptHandle;
 	HANDLE                     m_hRepostHandle;
 	CSocketBuffer*             m_pAcceptPendingList;
-	volatile UINT              m_nAcceptPendingListCount;
-	volatile UINT              m_nInitAccpets;
-	volatile UINT              m_nRepostCount;
+	UINT                       m_nAcceptPendingListCount;
+	UINT                       m_nInitAccpets;
+	UINT                       m_nRepostCount;
 	LPFN_ACCEPTEX              m_lpfnAcceptEx;
 	LPFN_GETACCEPTEXSOCKADDRS  m_lpfnGetAcceptExSockaddrs;
 	CRITICAL_SECTION           m_csLock;
@@ -214,26 +229,11 @@ public:
 	{
 		m_stHead = { 0 };
 		m_nDataLen = 0;
-		delete m_pDataPtr;
-		m_pDataPtr = nullptr;
 	}
 public:
 	REQUEST_HEAD m_stHead;
 	UINT         m_nDataLen;
 	void*        m_pDataPtr;
-};
-
-class CSessionData {
-public:
-	CSessionData(){}
-	virtual ~CSessionData(){}
-
-	BOOL CheckCRC32(void* pData, UINT nDataLen) { return TRUE; }
-	BOOL ConstructRequest(void* pDataPtr, UINT nDataLen, LPCONTEXT_HEAD& lpContext, LPREQUEST& lpRequest) { return TRUE; }
-
-public:
-	PACKET_HEAD m_stuHead;
-	UINT m_uiSessionID;
 };
 
 class CIocpServer : public CIocpWorker{
@@ -242,7 +242,10 @@ public:
 	virtual ~CIocpServer();
 
 	virtual BOOL InitializeMembers();
-	virtual BOOL Initialize(LPCTSTR lpSzIp, UINT nPort, UINT nInitAccepts, UINT nMaxAccpets, UINT nMaxSocketBufferListCount, UINT nMaxSocketContextListCount, UINT nMaxSendCount, UINT nThreads, UINT nConcurrency, UINT nMaxConnections);
+	virtual BOOL BeginListen(const char* lpSzIp, UINT nPort, UINT nInitAccepts, UINT nMaxAccpets);
+	virtual BOOL BeginThreadPool(UINT nThreads, UINT nConcurrency);
+	virtual BOOL InitializeIo();
+	virtual BOOL Initialize(const char* lpSzIp, UINT nPort, UINT nInitAccepts, UINT nMaxAccpets, UINT nMaxSocketBufferListCount, UINT nMaxSocketContextListCount, UINT nMaxSendCount, UINT nThreads, UINT nConcurrency, UINT nMaxConnections);
 	virtual BOOL Shutdown();
 
 	virtual BOOL OnRequest(void* lpParam1, void* lpParam2);
@@ -251,10 +254,14 @@ public:
 	virtual BOOL PostRecv(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
 	virtual BOOL PostSend(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
 
-	virtual BOOL OnReceiveData(CSocketContext* pContext, CSocketBuffer* pBuffer, CSessionData& rSessionData);
-	virtual BOOL OnVerifyData(CSocketContext* pContext, CSocketBuffer* pBuffer, CSessionData& rSessionData);
-	virtual BOOL OnHandleData(CSocketContext* pContext, CSocketBuffer* pBuffer, CSessionData& rSessionData);
-	virtual BOOL SendData(CSocketContext* pContext, LPVOID pData, UINT nDataLen);
+	virtual BOOL OnReceiveData(CSocketContext* pContext, CSocketBuffer* pBuffer);
+	virtual BOOL OnVerifyData(CSocketContext* pContext, CSocketBuffer* pBuffer);
+	virtual BOOL OnHandleData(CSocketContext* pContext, CSocketBuffer* pBuffer);
+
+	virtual BOOL SendData(SOCKET hSocket, LPCONTEXT_HEAD lpContextHead, LPREQUEST lpRequest, UINT uiMsgType);
+
+	virtual void ComposePacket(CBuffer& dstBuf, UINT nMsgType, LPVOID pData, UINT nPacketSize);
+	virtual void DecomposePacket(CBuffer& srcBuf, CBuffer& dstBuf, int nPacketSize);
 
 	virtual void HandleIo(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwTrans, DWORD dwError);
 	virtual void HandleIoDefault(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwTrans, DWORD dwError);
@@ -276,9 +283,12 @@ public:
 	virtual void ReleaseSocketContext(CSocketContext* pContext);
 	virtual void FreeSocketContext();
 
-	virtual CSocketBuffer* GetSocketBuffer(CSocketContext* pContext, CSocketBuffer* pBuffer);
+	virtual CSocketContext* FindClient(SOCKET hSocket);
 
-private:
+	virtual CSocketBuffer* GetRecvSocketBuffer(CSocketContext* pContext, CSocketBuffer* pBuffer);
+	virtual CSocketBuffer* GetSendSocketBuffer(CSocketContext* pContext, CSocketBuffer* pBuffer);
+
+protected:
 	static unsigned __stdcall AcceptThreadFunc(LPVOID lpParam);
 	static unsigned __stdcall WorkerThreadFunc(LPVOID lpParam);
 
@@ -325,4 +335,20 @@ public:
 	UINT m_nConcurrency;
 	
 	BOOL m_bShutdown;
+};
+
+class CIocpClient : public CIocpServer{
+public:
+	CIocpClient();
+	virtual ~CIocpClient();
+
+public:
+	virtual BOOL Create(const char* lpSzIp, UINT nPort, UINT nMaxConnections, UINT nThreads, UINT nConcurrency);
+	virtual BOOL BeginConnect(const char* lpSzIp, UINT nPort);
+	virtual BOOL Destroy();
+
+	virtual BOOL OnReceiveData(CSocketContext* pContext, CSocketBuffer* pBuffer);
+
+	virtual BOOL SendData(SOCKET hSocket, LPCONTEXT_HEAD lpContextHead, LPREQUEST lpRequest, UINT uiMsgType);
+	virtual BOOL SendCast(SOCKET hSocket, LPCONTEXT_HEAD lpContextHead, LPREQUEST lpRequest, UINT uiMsgType);
 };

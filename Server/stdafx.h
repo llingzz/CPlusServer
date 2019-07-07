@@ -5,6 +5,10 @@
 
 #pragma once
 
+#define _CRTDBG_MAP_ALLOC
+#include <stdlib.h>
+#include <crtdbg.h>
+#define new  new(_CLIENT_BLOCK, __FILE__, __LINE__)
 #define _CRT_SECURE_NO_WARNINGS
 
 #include "targetver.h"
@@ -34,7 +38,7 @@ using namespace std;
 #include "iocp/IocpSocket.h"
 #include "iocp/IocpAccept.h"
 #include "iocp.h"
-#include "timer/Timer.h"
+#include "timer/timer.h"
 #include "db/DBCommon.h"
 #include "db/DBOperator.h"
 #include "redis/RedisManager.h"

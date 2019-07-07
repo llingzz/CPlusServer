@@ -121,7 +121,7 @@
     <ClInclude Include="targetver.h" />
     <ClInclude Include="threadpool\MessageQueue.h" />
     <ClInclude Include="threadpool\ThreadPool.h" />
-    <ClInclude Include="timer\Timer.h" />
+    <ClInclude Include="timer\timer.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="CPlusClient.cpp" />
@@ -162,7 +162,7 @@
     </ClCompile>
     <ClCompile Include="threadpool\MessageQueue.cpp" />
     <ClCompile Include="threadpool\ThreadPool.cpp" />
-    <ClCompile Include="timer\Timer.cpp" />
+    <ClCompile Include="timer\timer.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

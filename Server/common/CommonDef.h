@@ -3,6 +3,8 @@
 #include <WinSock2.h>
 #include <MSWSock.h>
 #pragma comment(lib,"ws2_32.lib")
+#include <dbghelp.h > 
+#pragma comment(lib, "dbghelp.lib")
 
 #define				SERVER_NAME								"CPlusServer"
 

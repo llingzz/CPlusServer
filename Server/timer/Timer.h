@@ -17,15 +17,15 @@
 #define MASK_OUTLEVELS				((1 << BIT_LEVEL) - 1)	//判断任务放在哪外层圈的掩码（0011 1111）
 
 //回调函数指针
-typedef void(*TimeOutCallback)(void*);
-typedef void(*CancelCallback)(void*);
+typedef void(*TimeOutCB)(void*);
+typedef void(*CancelCB)(void*);
 
 //时间轮参数
 struct TimeWheelNode{
 	unsigned int nTimerID;
 	void* pParam;
-	TimeOutCallback pTOCB;
-	CancelCallback pCCB;
+	TimeOutCB pTOCB;
+	CancelCB pCCB;
 	unsigned int uiExpireTime;
 	unsigned int uiLevelID;
 	unsigned int uiSlotID;
@@ -41,7 +41,7 @@ public:
 	void StartTimer();
 	void UpdateTimer();
 
-	TimeWheelNode* SetTimer(unsigned int uiMilliSeconds, TimeOutCallback TOC, void* pParam, CancelCallback CC);
+	TimeWheelNode* SetTimer(unsigned int uiMilliSeconds, TimeOutCB TOC, void* pParam, CancelCB CC);
 	void CancelTimer(unsigned int uiTimerID);
 
 	void ExcuteTimerList();

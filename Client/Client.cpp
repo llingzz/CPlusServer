@@ -4,6 +4,10 @@
 #include "stdafx.h"
 #include <ctime>
 #include <process.h>
+#include <winsock2.h>
+#include <windows.h>
+#pragma comment(lib,"ws2_32.lib")
+#include <Mswsock.h>
 
 #define SAFE_RELEASE_HANDLE(x)               {if(x != NULL && x!=INVALID_HANDLE_VALUE){ CloseHandle(x);x = NULL;}}
 #define SAFE_RELEASE(x)                      {if(x != NULL ){delete x;x=NULL;}}
@@ -148,8 +152,118 @@ BOOL CClient::ConnectToServer(SOCKET* pSocket, char* pServerIP, int nPort)
 		return FALSE;
 	}
 	std::cout << "Connect to Server Success..." << errno << std::endl;
+	std::cout << "socket:" << *pSocket << std::endl;
 
 	return TRUE;
+}
+
+void CClient::TestIocpConnect()
+{
+	WSAData data;
+	LPFN_CONNECTEX ConnectEx;
+	LPFN_DISCONNECTEX DisconnectEx;
+	::WSAStartup(0x0202, &data);
+
+	sockaddr_in addr;
+	addr.sin_family = AF_INET;
+	addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+	addr.sin_port = htons(8888);
+	SOCKET sock = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
+
+	DWORD dwSend, dwBytes;
+	char szBuffer[] = "hello world";
+	OVERLAPPED ol;
+	memset(&ol, 0, sizeof(ol));
+	GUID guidConnectEx = WSAID_CONNECTEX;
+	GUID guidDisconnectEx = WSAID_DISCONNECTEX;
+	if (SOCKET_ERROR == WSAIoctl(sock, SIO_GET_EXTENSION_FUNCTION_POINTER,
+		&guidConnectEx, sizeof(guidConnectEx), &ConnectEx, sizeof(ConnectEx), &dwBytes, NULL, NULL))
+	{
+		printf("得到扩展函数指针失败!\r\n");
+		getchar();
+	}
+	if (SOCKET_ERROR == WSAIoctl(sock, SIO_GET_EXTENSION_FUNCTION_POINTER,
+		&guidDisconnectEx, sizeof(guidDisconnectEx), &DisconnectEx, sizeof(DisconnectEx), &dwBytes, NULL, NULL))
+	{
+		printf("得到扩展函数指针失败\r\n");
+		getchar();
+	}
+	SOCKADDR_IN local;
+	local.sin_family = AF_INET;
+	local.sin_addr.S_un.S_addr = INADDR_ANY;
+	local.sin_port = 0;
+	if (SOCKET_ERROR == bind(sock, (LPSOCKADDR)&local, sizeof(local)))
+	{
+		printf("绑定套接字失败!\r\n");
+		getchar();
+	}
+
+	//连接服务器
+	if (!ConnectEx(sock, (const sockaddr*)&addr, sizeof(addr), NULL, 0, &dwSend, &ol))
+	{
+		DWORD dwError = WSAGetLastError();
+		if (ERROR_IO_PENDING != dwError)
+		{
+			printf("连接服务器失败\r\n");
+			getchar();
+		}
+	}
+	DWORD dwFlag = 0, dwTrans;
+	if (!WSAGetOverlappedResult(sock, &ol, &dwTrans, TRUE, &dwFlag))
+	{
+		printf("等待异步结果失败\r\n");
+		getchar();
+	}
+
+	std::cout << sock << std::endl;
+
+	//PACKET_HEAD stuHead = { 0 };
+	//std::string str = "helloworld";
+	//stuHead.uiPacketNo = sizeof(PACKET_HEAD) + str.size() - sizeof(int);
+	//stuHead.uiMsgType = 1;
+	//stuHead.uiPacketLen = str.size();
+
+	//CBufferEx myDataPool;
+	//myDataPool.Write((PBYTE)&stuHead, sizeof(PACKET_HEAD));
+	//myDataPool.Write((PBYTE)str.c_str(), str.size());
+
+	//WSABUF buf = {0};
+	//buf.buf = (CHAR*)myDataPool.c_Bytes();
+	//buf.len = myDataPool.GetLength();
+	////发送数据
+	//if (WSASend(sock, &buf, 1, &dwSend, dwFlag, &ol, NULL))
+	//{
+	//	DWORD dwError = WSAGetLastError();
+	//	if (ERROR_IO_PENDING != dwError)
+	//	{
+	//		printf("发送失败\r\n");
+	//		getchar();
+	//	}
+
+	//}
+	//if (!WSAGetOverlappedResult(sock, &ol, &dwTrans, TRUE, &dwFlag))
+	//{
+	//	printf("等待异步结果失败\r\n");
+	//	getchar();
+	//}
+
+	////断开连接
+	//if (!DisconnectEx(sock, &ol, 0, 0)) {
+	//	DWORD dwError = WSAGetLastError();
+	//	if (ERROR_IO_PENDING != dwError)
+	//	{
+	//		printf("断开服务器失败\r\n");
+	//		getchar();
+	//	}
+	//}
+	//if (!WSAGetOverlappedResult(sock, &ol, &dwTrans, TRUE, &dwFlag))
+	//{
+	//	printf("等待异步结果失败\r\n");
+	//	getchar();
+	//}
+
+	//closesocket(sock);
+	//WSACleanup();
 }
 
 BOOL CClient::LoadSocketLib()
@@ -222,7 +336,6 @@ void CClient::CleanUp()
 
 unsigned int __stdcall CClient::ConnectionThread(LPVOID lpParam)
 {
-
 	WORKER_THREAD_PARAM* pParam = (WORKER_THREAD_PARAM*)lpParam;
 	CClient* pClient = (CClient*)pParam->pClient;
 	pClient->InitialiazeConnection();
@@ -288,6 +401,7 @@ void CClient::SendData(SOCKET socket, UINT nRequest, void* pData, int nDataLen)
 {
 	PACKET_HEAD stuHead = { 0 };
 	std::string str = "helloworld";
+	stuHead.uiPacketNo = sizeof(PACKET_HEAD) + str.size() - sizeof(int);
 	stuHead.uiMsgType = 1;
 	stuHead.uiPacketLen = str.size();
 
@@ -301,12 +415,17 @@ void CClient::SendData(SOCKET socket, UINT nRequest, void* pData, int nDataLen)
 
 int _tmain(int argc, _TCHAR* argv[])
 {
+#if 1
 	for (auto i = 0; i < 1; i++)
 	{
 		CClient* pClient = new CClient("127.0.0.1", "127.0.0.1", 8888, 1);
 		pClient->Run();
 	}
-
+#elif 0
+	CClient* pClient = new CClient("127.0.0.1", "127.0.0.1", 8888, 1);
+	pClient->TestIocpConnect();
+#else
+#endif
 	getchar();
 	return 0;
 }
