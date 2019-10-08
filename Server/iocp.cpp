@@ -248,84 +248,115 @@ BOOL CIocpServer::OnRequest(void* lpParam1, void* lpParam2)
 	return TRUE;
 }
 
-BOOL CIocpServer::BeginListen(const char* lpSzIp, UINT nPort, UINT nInitAccepts, UINT nMaxAccpets)
+bool CIocpServer::BeginBindListen(const char* lpSzIp, UINT nPort, UINT nInitAccepts, UINT nMaxAccpets)
 {
 	m_nPort = nPort;
 	lstrcpy(m_szIp, (TCHAR*)lpSzIp);
 
 	m_pListenContext = new CSocketListenContext;
 	m_pListenContext->m_hAcceptHandle = ::CreateEvent(NULL, FALSE, FALSE, NULL);
+	if (INVALID_HANDLE_VALUE == m_pListenContext->m_hAcceptHandle)
+	{
+		myLogConsoleE("%s 句柄m_hAcceptHandle无效", __FUNCTION__);
+		return false;
+	}
+
 	m_pListenContext->m_hRepostHandle = ::CreateEvent(NULL, FALSE, FALSE, NULL);
+	if (INVALID_HANDLE_VALUE == m_pListenContext->m_hRepostHandle)
+	{
+		myLogConsoleE("%s 句柄m_hRepostHandle无效", __FUNCTION__);
+		return false;
+	}
+
 	m_pListenContext->m_nInitAccpets = nInitAccepts;
 	m_pListenContext->m_hSocket = ::WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
-	myLogConsoleI("%s 监听套接字%d初始化", __FUNCTION__, m_pListenContext->m_hSocket);
+	if (INVALID_HANDLE_VALUE == m_pListenContext->m_hRepostHandle)
+	{
+		myLogConsoleE("%s 句柄m_hSocket无效", __FUNCTION__);
+		return false;
+	}
+
+	m_pListenContext->m_lpfnAcceptEx = (LPFN_ACCEPTEX)_GetExtendFunc(m_pListenContext->m_hSocket, WSAID_ACCEPTEX);
+	m_pListenContext->m_lpfnGetAcceptExSockaddrs = (LPFN_GETACCEPTEXSOCKADDRS)_GetExtendFunc(m_pListenContext->m_hSocket, WSAID_GETACCEPTEXSOCKADDRS);
+	//m_pListenContext->m_lpfnConnectEx = (LPFN_CONNECTEX)_GetExtendFunc(m_pListenContext->m_hSocket, WSAID_CONNECTEX);
+	//m_pListenContext->m_lpfnDisconnectEx = (LPFN_DISCONNECTEX)_GetExtendFunc(m_pListenContext->m_hSocket, WSAID_DISCONNECTEX);
+	if (!m_pListenContext->m_lpfnAcceptEx || !m_pListenContext->m_lpfnGetAcceptExSockaddrs/* || !m_pListenContext->m_lpfnConnectEx || !m_pListenContext->m_lpfnDisconnectEx*/)
+	{
+		myLogConsoleE("%s m_lpfnAcceptEx/m_lpfnGetAcceptExSockaddrs/m_lpfnConnectEx/m_lpfnDisconnectEx为nullptr!!!", __FUNCTION__, m_pListenContext->m_hSocket);
+	}
+
 	SOCKADDR_IN sock_in;
-	memset(&sock_in, 0, sizeof(SOCKADDR_IN));
+	::memset(&sock_in, 0, sizeof(SOCKADDR_IN));
 	sock_in.sin_family = AF_INET;
 	sock_in.sin_port = ::ntohs(m_nPort);
-	sock_in.sin_addr.S_un.S_addr = inet_addr((char*)m_szIp);;
-	::bind(m_pListenContext->m_hSocket, (SOCKADDR*)&sock_in, sizeof(sock_in));
-	::listen(m_pListenContext->m_hSocket, SOMAXCONN);
+	sock_in.sin_addr.S_un.S_addr = inet_addr((char*)m_szIp);
 
-	GUID GuidAcceptEx = WSAID_ACCEPTEX;
-	DWORD dwBytes;
-	::WSAIoctl(m_pListenContext->m_hSocket,
-		SIO_GET_EXTENSION_FUNCTION_POINTER,
-		&GuidAcceptEx,
-		sizeof(GuidAcceptEx),
-		&(m_pListenContext->m_lpfnAcceptEx),
-		sizeof(m_pListenContext->m_lpfnAcceptEx),
-		&dwBytes,
-		NULL,
-		NULL);
-	GUID GuidGetAcceptExSockaddrs = WSAID_GETACCEPTEXSOCKADDRS;
-	::WSAIoctl(m_pListenContext->m_hSocket,
-		SIO_GET_EXTENSION_FUNCTION_POINTER,
-		&GuidGetAcceptExSockaddrs,
-		sizeof(GuidGetAcceptExSockaddrs),
-		&(m_pListenContext->m_lpfnGetAcceptExSockaddrs),
-		sizeof(m_pListenContext->m_lpfnGetAcceptExSockaddrs),
-		&dwBytes,
-		NULL,
-		NULL);
+	int nRet = ::bind(m_pListenContext->m_hSocket, (SOCKADDR*)&sock_in, sizeof(sock_in));
+	if (SOCKET_ERROR == nRet)
+	{
+		myLogConsoleE("%s 套接字bind错误", __FUNCTION__);
+		WSACleanup();
+		closesocket(m_pListenContext->m_hSocket);
+		return false;
+	}
+	
+	nRet =::listen(m_pListenContext->m_hSocket, SOMAXCONN);
+	if (SOCKET_ERROR == nRet)
+	{
+		myLogConsoleE("%s 套接字listen错误", __FUNCTION__);
+		WSACleanup();
+		closesocket(m_pListenContext->m_hSocket);
+		return false;
+	}
+
 	::CreateIoCompletionPort((HANDLE)m_pListenContext->m_hSocket, m_hCompletionPort, (DWORD)0, 0);
 	::WSAEventSelect(m_pListenContext->m_hSocket, m_pListenContext->m_hAcceptHandle, FD_ACCEPT);
-	m_hAcceptThread = (HANDLE)::_beginthreadex(NULL, 0, AcceptThreadFunc, (void*)this, 0, &m_uiAcceptThread);
 
-	return TRUE;
+	m_hAcceptThread = (HANDLE)::_beginthreadex(NULL, 0, AcceptThreadFunc, (void*)this, 0, &m_uiAcceptThread);
+	if (INVALID_HANDLE_VALUE == m_hAcceptThread)
+	{
+		myLogConsoleE("%s 监听线程连接失败", __FUNCTION__);
+		return false;
+	}
+
+	return true;
 }
 
-BOOL CIocpServer::BeginThreadPool(UINT nThreads, UINT nConcurrency)
+bool CIocpServer::BeginThreadPool(UINT nThreads, UINT nConcurrency)
 {
+	// 创建工作线程，推荐线程数：处理器数*2
 	m_nWorkerThreads = (nThreads <= MAX_WORKER_THREAD_NUMBER) ? nThreads : MAX_WORKER_THREAD_NUMBER;
 	m_nConcurrency = nConcurrency;
 
-	// 创建工作线程，推荐线程数：处理器数*2
 	for (int i = 0; i < m_nWorkerThreads; i++)
 	{
 		unsigned int uiWorkerThread = 0;
 		m_hWorkerHandle[i] = (HANDLE)::_beginthreadex(NULL, 0, WorkerThreadFunc, (void*)this, 0, &uiWorkerThread);
 		if (INVALID_HANDLE_VALUE == m_hWorkerHandle[i])
 		{
-			myLogConsoleE("工作线程创建失败...");
-			return FALSE;
+			myLogConsoleE("%s 工作线程创建失败...", __FUNCTION__);
+			return false;
 		}
 	}
-
-	return TRUE;
+	return true;
 }
 
-BOOL CIocpServer::InitializeIo()
+bool CIocpServer::InitializeIo()
 {
 	WSADATA wsaData;
 	::WSAStartup(MAKEWORD(2, 2), &wsaData);
 
 	m_hCompletionPort = ::CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, m_nConcurrency);
+	if (INVALID_HANDLE_VALUE == m_hCompletionPort)
+	{
+		myLogConsoleE("%s m_hCompletionPort句柄无效", __FUNCTION__);
+		return false;
+	}
 
-	return TRUE;
+	return true;
 }
 
-BOOL CIocpServer::Initialize(const char* lpSzIp, UINT nPort, UINT nInitAccepts, UINT nMaxAccpets, UINT nMaxSocketBufferListCount, UINT nMaxSocketContextListCount, UINT nMaxSendCount, UINT nThreads, UINT nConcurrency, UINT nMaxConnections)
+bool CIocpServer::Initialize(const char* lpSzIp, UINT nPort, UINT nInitAccepts, UINT nMaxAccpets, UINT nMaxSocketBufferListCount, UINT nMaxSocketContextListCount, UINT nMaxSendCount, UINT nThreads, UINT nConcurrency, UINT nMaxConnections)
 {
 	InitializeMembers();
 	m_nMaxAccepts = nMaxAccpets;
@@ -334,26 +365,22 @@ BOOL CIocpServer::Initialize(const char* lpSzIp, UINT nPort, UINT nInitAccepts, 
 	m_nMaxSendCount = nMaxSendCount;
 	m_nMaxConnections = nMaxConnections;
 
-	//BeginWorkerPool(m_nWorkerThreads, m_nConcurrency);
 	if (!InitializeIo())
 	{
 		myLogConsoleW("%s InitializeIo失败", __FUNCTION__);
-		return FALSE;
+		return false;
 	}
-	if (!BeginListen(lpSzIp, nPort, nInitAccepts, nMaxAccpets))
+	if (!BeginBindListen(lpSzIp, nPort, nInitAccepts, nMaxAccpets))
 	{
 		myLogConsoleW("%s BeginListen失败", __FUNCTION__);
-		return FALSE;
+		return false;
 	}
 	if (!BeginThreadPool(nThreads, nConcurrency))
 	{
 		myLogConsoleW("%s BeginThreadPool失败", __FUNCTION__);
-		return FALSE;
+		return false;
 	}
-
-	this;
-
-	return TRUE;
+	return true;
 }
 
 BOOL CIocpServer::PostAccept(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError)
@@ -436,6 +463,20 @@ BOOL CIocpServer::PostSend(CSocketContext* pContext, CSocketBuffer* pBuffer, DWO
 	::LeaveCriticalSection(&(pContext->m_csLock));
 
 	return TRUE;
+}
+
+bool CIocpServer::PostConnect(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError)
+{
+	//int nRet = m_pListenContext->m_lpfnConnectEx()
+
+	return true;
+}
+
+bool CIocpServer::PostDisConnect(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError)
+{
+
+
+	return true;
 }
 
 BOOL CIocpServer::OnReceiveData(CSocketContext* pContext, CSocketBuffer* pBuffer)
@@ -639,6 +680,7 @@ void CIocpServer::HandleIo(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwTrans, D
 				SAFE_RELEASE_SOCKET(pBuffer->m_hSocket);
 			}
 		}
+		return;
 	}
 	/*分别处理I/O操作*/
 	switch (pBuffer->m_ioType)
@@ -1212,7 +1254,8 @@ unsigned __stdcall CIocpServer::AcceptThreadFunc(LPVOID lpParam)
 	CIocpServer* pIocpServer = (CIocpServer*)lpParam;
 	CSocketBuffer* pBuffer = NULL;
 	DWORD dwError = 0;
-	// 最开始先投递初始数量的Accept请求
+
+	// 预投递初始数量Accept请求以供使用
 	for (int i = 0; i < pIocpServer->m_pListenContext->m_nInitAccpets; i++)
 	{
 		pBuffer = pIocpServer->AllocateSocketBuffer(DATA_BUF_SIZE);
@@ -1365,6 +1408,14 @@ unsigned __stdcall CIocpServer::WorkerThreadFunc(LPVOID lpParam)
 	return THREAD_EXIT;
 }
 
+void* CIocpServer::_GetExtendFunc(const SOCKET& socket, const GUID& guid)
+{
+	void* ptr = nullptr;
+	DWORD bytes = 0;
+	::WSAIoctl(socket, SIO_GET_EXTENSION_FUNCTION_POINTER, (LPVOID)&guid, sizeof(guid), &ptr, sizeof(ptr), &bytes, NULL, NULL);
+	return ptr;
+}
+
 /*CIocpClient*/
 CIocpClient::CIocpClient()
 {
@@ -1413,7 +1464,7 @@ BOOL CIocpClient::BeginConnect(const char* lpSzIp, UINT nPort)
 	memset(&remoteAddr, 0, sizeof(SOCKADDR_IN));
 	remoteAddr.sin_family = AF_INET;
 	remoteAddr.sin_addr.S_un.S_addr = inet_addr((char*)lpSzIp);
-	remoteAddr.sin_port = htons(nPort);
+	remoteAddr.sin_port = ::htons(nPort);
 
 	/*连接服务器*/
 #if 1

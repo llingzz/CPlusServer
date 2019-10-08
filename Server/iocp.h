@@ -125,6 +125,9 @@ public:
 	CBuffer           m_objReqBuf;
 	CBuffer           m_objResBuf;
 
+	LPFN_CONNECTEX    m_lpfnConnectEx;
+	LPFN_DISCONNECTEX m_lpfnDisconnectEx;
+
 	CRITICAL_SECTION  m_csLock;
 
 	CSocketContext* m_pNext;
@@ -191,6 +194,9 @@ public:
 		m_lpfnAcceptEx = NULL;
 		m_lpfnGetAcceptExSockaddrs = NULL;
 		m_pNext = NULL;
+		m_nAcceptPendingListCount = 0;
+		m_nInitAccpets = 0;
+		m_nRepostCount = 0;
 	}
 	virtual ~CSocketListenContext()
 	{
@@ -242,10 +248,10 @@ public:
 	virtual ~CIocpServer();
 
 	virtual BOOL InitializeMembers();
-	virtual BOOL BeginListen(const char* lpSzIp, UINT nPort, UINT nInitAccepts, UINT nMaxAccpets);
-	virtual BOOL BeginThreadPool(UINT nThreads, UINT nConcurrency);
-	virtual BOOL InitializeIo();
-	virtual BOOL Initialize(const char* lpSzIp, UINT nPort, UINT nInitAccepts, UINT nMaxAccpets, UINT nMaxSocketBufferListCount, UINT nMaxSocketContextListCount, UINT nMaxSendCount, UINT nThreads, UINT nConcurrency, UINT nMaxConnections);
+	virtual bool BeginBindListen(const char* lpSzIp, UINT nPort, UINT nInitAccepts, UINT nMaxAccpets);
+	virtual bool BeginThreadPool(UINT nThreads, UINT nConcurrency);
+	virtual bool InitializeIo();
+	virtual bool Initialize(const char* lpSzIp, UINT nPort, UINT nInitAccepts, UINT nMaxAccpets, UINT nMaxSocketBufferListCount, UINT nMaxSocketContextListCount, UINT nMaxSendCount, UINT nThreads, UINT nConcurrency, UINT nMaxConnections);
 	virtual BOOL Shutdown();
 
 	virtual BOOL OnRequest(void* lpParam1, void* lpParam2);
@@ -253,6 +259,8 @@ public:
 	virtual BOOL PostAccept(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
 	virtual BOOL PostRecv(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
 	virtual BOOL PostSend(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
+	virtual bool PostConnect(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
+	virtual bool PostDisConnect(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
 
 	virtual BOOL OnReceiveData(CSocketContext* pContext, CSocketBuffer* pBuffer);
 	virtual BOOL OnVerifyData(CSocketContext* pContext, CSocketBuffer* pBuffer);
@@ -291,6 +299,9 @@ public:
 protected:
 	static unsigned __stdcall AcceptThreadFunc(LPVOID lpParam);
 	static unsigned __stdcall WorkerThreadFunc(LPVOID lpParam);
+
+private:
+	void* _GetExtendFunc(const SOCKET& socket, const GUID& guid);
 
 public:
 	/*空闲I/O操作结构列表*/

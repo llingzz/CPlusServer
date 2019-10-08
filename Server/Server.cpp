@@ -59,7 +59,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	worker.EndWorkerPool();
 #elif 1
 	CIocpServer IocpServer = CIocpServer();
-	if (!IocpServer.Initialize("127.0.0.1", 8888, 10, 20, 10, 10, 10, 10, 0, 10))
+	if (!IocpServer.Initialize("127.0.0.1", 8888, 1, 20, 10, 10, 10, 10, 0, 10))
 	{
 		myLogConsoleI("server initialize failed");
 	}

@@ -64,15 +64,7 @@ UINT32 getCRC(char* buf, int nLength)
 	return crc;
 }
 
-CClient::CClient(char* szServerIP, char* szClientIP, int nPort, int nThreads)/* :
-m_szServerIP((char*)DEFAULT_IP),
-m_szClientIP((char*)DEFAULT_IP),
-m_nPort(DEFAULT_PORT),
-m_nThreads(DEFAULT_THREAD),
-m_hConnectionThread(NULL),
-m_phSendThreads(NULL),
-m_pWorkerThreadParam(NULL),
-m_hShutdownEvent(NULL)*/
+CClient::CClient(char* szServerIP, char* szClientIP, int nPort, int nThreads)
 {
 	m_szServerIP = szServerIP;
 	m_szClientIP = szClientIP;
@@ -215,37 +207,35 @@ void CClient::TestIocpConnect()
 		getchar();
 	}
 
-	std::cout << sock << std::endl;
+	PACKET_HEAD stuHead = { 0 };
+	std::string str = "helloworld";
+	stuHead.uiPacketNo = sizeof(PACKET_HEAD) + str.size() - sizeof(int);
+	stuHead.uiMsgType = 1;
+	stuHead.uiPacketLen = str.size();
 
-	//PACKET_HEAD stuHead = { 0 };
-	//std::string str = "helloworld";
-	//stuHead.uiPacketNo = sizeof(PACKET_HEAD) + str.size() - sizeof(int);
-	//stuHead.uiMsgType = 1;
-	//stuHead.uiPacketLen = str.size();
+	CBufferEx myDataPool;
+	myDataPool.Write((PBYTE)&stuHead, sizeof(PACKET_HEAD));
+	myDataPool.Write((PBYTE)str.c_str(), str.size());
 
-	//CBufferEx myDataPool;
-	//myDataPool.Write((PBYTE)&stuHead, sizeof(PACKET_HEAD));
-	//myDataPool.Write((PBYTE)str.c_str(), str.size());
+	WSABUF buf = {0};
+	buf.buf = (CHAR*)myDataPool.c_Bytes();
+	buf.len = myDataPool.GetLength();
+	//发送数据
+	if (WSASend(sock, &buf, 1, &dwSend, dwFlag, &ol, NULL))
+	{
+		DWORD dwError = WSAGetLastError();
+		if (ERROR_IO_PENDING != dwError)
+		{
+			printf("发送失败\r\n");
+			getchar();
+		}
 
-	//WSABUF buf = {0};
-	//buf.buf = (CHAR*)myDataPool.c_Bytes();
-	//buf.len = myDataPool.GetLength();
-	////发送数据
-	//if (WSASend(sock, &buf, 1, &dwSend, dwFlag, &ol, NULL))
-	//{
-	//	DWORD dwError = WSAGetLastError();
-	//	if (ERROR_IO_PENDING != dwError)
-	//	{
-	//		printf("发送失败\r\n");
-	//		getchar();
-	//	}
-
-	//}
-	//if (!WSAGetOverlappedResult(sock, &ol, &dwTrans, TRUE, &dwFlag))
-	//{
-	//	printf("等待异步结果失败\r\n");
-	//	getchar();
-	//}
+	}
+	if (!WSAGetOverlappedResult(sock, &ol, &dwTrans, TRUE, &dwFlag))
+	{
+		printf("等待异步结果失败\r\n");
+		getchar();
+	}
 
 	////断开连接
 	//if (!DisconnectEx(sock, &ol, 0, 0)) {
@@ -415,13 +405,13 @@ void CClient::SendData(SOCKET socket, UINT nRequest, void* pData, int nDataLen)
 
 int _tmain(int argc, _TCHAR* argv[])
 {
-#if 1
+#if 0
 	for (auto i = 0; i < 1; i++)
 	{
 		CClient* pClient = new CClient("127.0.0.1", "127.0.0.1", 8888, 1);
 		pClient->Run();
 	}
-#elif 0
+#elif 1
 	CClient* pClient = new CClient("127.0.0.1", "127.0.0.1", 8888, 1);
 	pClient->TestIocpConnect();
 #else
