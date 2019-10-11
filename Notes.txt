@@ -1,3 +1,0 @@
-<RabbitMQ>
-1.在Rabbit Management Plugin控制台添加新用户之后，注意，此时不能直接使用新注册的用户账号与密码作为参数传递给rabbitmq-c的接口amqp_login，
-因为此时，新加的账号还没有开启相关许可，需要添加的话，在网页上登录RabbitMQ Management在用户中心设置Set Permission
