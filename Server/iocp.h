@@ -242,7 +242,7 @@ public:
 	void*        m_pDataPtr;
 };
 
-class CIocpServer : public CIocpWorker{
+class CIocpServer{
 public:
 	CIocpServer();
 	virtual ~CIocpServer();
