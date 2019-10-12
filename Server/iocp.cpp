@@ -463,7 +463,7 @@ bool CIocpServer::OnReceiveData(CSocketContext* pContext, CSocketBuffer* pBuffer
 	if (!pContext || !pBuffer || pBuffer->m_nBufferLen <= 0) { return false; }
 
 	/*收到数据包，将数据放入接收缓存区*/
-	::EnterCriticalSection(&(pContext->m_csLock));
+	//::EnterCriticalSection(&(pContext->m_csLock));
 
 	UINT uiPacketHeadLen = sizeof(PACKET_HEAD);
 	UINT uiDataBufLen = pContext->m_objDataBuf.GetBufferLen();
@@ -492,7 +492,7 @@ bool CIocpServer::OnReceiveData(CSocketContext* pContext, CSocketBuffer* pBuffer
 			// todo
 
 			/*数据包处理*/
-			OnHandleData(pContext, pBuffer);
+			//OnHandleData(pContext, pBuffer);
 
 			/*缓存区剩下的数据长度大于或等于包头所指的包体长度，取出完整数据包*/
 			pContext->m_nSessionID++;
@@ -511,7 +511,7 @@ bool CIocpServer::OnReceiveData(CSocketContext* pContext, CSocketBuffer* pBuffer
 			myLogConsoleI("%s 当前套接字下回复数据缓冲区数据大小剩余：%d（字节）", __FUNCTION__, pContext->m_objResBuf.GetBufferLen());
 		}
 	}
-	::LeaveCriticalSection(&(pContext->m_csLock));
+	//::LeaveCriticalSection(&(pContext->m_csLock));
 	return TRUE;
 }
 
@@ -1197,6 +1197,7 @@ CSocketBuffer* CIocpServer::GetRecvSocketBuffer(CSocketContext* pContext, CSocke
 		::EnterCriticalSection(&(pContext->m_csLock));
 		if (pBuffer->m_nSerialNo == pContext->m_nCurrentReadSerialNo)
 		{
+			::LeaveCriticalSection(&(pContext->m_csLock));
 			return pBuffer;
 		}
 		/*否则代表乱序了，将当前I/O操作按顺序排好序*/
@@ -1232,6 +1233,7 @@ CSocketBuffer* CIocpServer::GetRecvSocketBuffer(CSocketContext* pContext, CSocke
 		{
 			pContext->m_pWaitingRecv = pRet->m_pNext;
 			::InterlockedDecrement(&(pContext->m_nPendingRecv));
+			::LeaveCriticalSection(&(pContext->m_csLock));
 			return pRet;
 		}
 		::LeaveCriticalSection(&(pContext->m_csLock));
@@ -1571,7 +1573,7 @@ bool CIocpClient::OnReceiveData(CSocketContext* pContext, CSocketBuffer* pBuffer
 	return __super::OnReceiveData(pContext, pBuffer);
 }
 
-BOOL CIocpClient::SendData(SOCKET hSocket, LPCONTEXT_HEAD lpContextHead, LPREQUEST lpRequest, UINT uiMsgType)
+bool CIocpClient::SendData(SOCKET hSocket, LPCONTEXT_HEAD lpContextHead, LPREQUEST lpRequest, UINT uiMsgType)
 {
 	CBuffer myDataPool;
 	ComposePacket(myDataPool, uiMsgType, lpRequest->m_pDataPtr, sizeof(REQUEST));
