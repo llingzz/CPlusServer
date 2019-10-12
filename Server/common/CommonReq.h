@@ -31,4 +31,9 @@ typedef struct _tagREQUEST_HEAD{
 	UINT nRepeated;
 	UINT nRequest;
 }REQUEST_HEAD, *LPREQUEST_HEAD;
+
+typedef struct _tagNET_PACKET {
+	int nMsgID;
+	int nDataLen; // 数据包长度 
+}NET_PACKET, *LPNET_PACKET;
 /************************************************************************/

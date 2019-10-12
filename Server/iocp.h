@@ -247,26 +247,26 @@ public:
 	CIocpServer();
 	virtual ~CIocpServer();
 
-	virtual BOOL InitializeMembers();
+	virtual void InitializeMembers();
 	virtual bool BeginBindListen(const char* lpSzIp, UINT nPort, UINT nInitAccepts, UINT nMaxAccpets);
 	virtual bool BeginThreadPool(UINT nThreads, UINT nConcurrency);
 	virtual bool InitializeIo();
 	virtual bool Initialize(const char* lpSzIp, UINT nPort, UINT nInitAccepts, UINT nMaxAccpets, UINT nMaxSocketBufferListCount, UINT nMaxSocketContextListCount, UINT nMaxSendCount, UINT nThreads, UINT nConcurrency, UINT nMaxConnections);
-	virtual BOOL Shutdown();
+	virtual bool Shutdown();
 
 	virtual BOOL OnRequest(void* lpParam1, void* lpParam2);
 
-	virtual BOOL PostAccept(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
-	virtual BOOL PostRecv(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
-	virtual BOOL PostSend(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
-	virtual bool PostConnect(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
-	virtual bool PostDisConnect(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
+	virtual bool PostAccept(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
+	virtual bool PostRecv(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
+	virtual bool PostSend(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
 
-	virtual BOOL OnReceiveData(CSocketContext* pContext, CSocketBuffer* pBuffer);
-	virtual BOOL OnVerifyData(CSocketContext* pContext, CSocketBuffer* pBuffer);
+	virtual bool OnReceiveData(CSocketContext* pContext, CSocketBuffer* pBuffer);
+	virtual bool OnCheckHeader(void* pData);
+	virtual bool OnVerifyData(CSocketContext* pContext, CSocketBuffer* pBuffer);
 	virtual BOOL OnHandleData(CSocketContext* pContext, CSocketBuffer* pBuffer);
 
-	virtual BOOL SendData(SOCKET hSocket, LPCONTEXT_HEAD lpContextHead, LPREQUEST lpRequest, UINT uiMsgType);
+	virtual bool ConnectTo(SOCKET hSocket, const char* szIp, const int nPort);
+	virtual bool SendData(SOCKET hSocket, LPCONTEXT_HEAD lpContextHead, LPREQUEST lpRequest, UINT uiMsgType);
 
 	virtual void ComposePacket(CBuffer& dstBuf, UINT nMsgType, LPVOID pData, UINT nPacketSize);
 	virtual void DecomposePacket(CBuffer& srcBuf, CBuffer& dstBuf, int nPacketSize);
@@ -358,7 +358,7 @@ public:
 	virtual BOOL BeginConnect(const char* lpSzIp, UINT nPort);
 	virtual BOOL Destroy();
 
-	virtual BOOL OnReceiveData(CSocketContext* pContext, CSocketBuffer* pBuffer);
+	virtual bool OnReceiveData(CSocketContext* pContext, CSocketBuffer* pBuffer);
 
 	virtual BOOL SendData(SOCKET hSocket, LPCONTEXT_HEAD lpContextHead, LPREQUEST lpRequest, UINT uiMsgType);
 	virtual BOOL SendCast(SOCKET hSocket, LPCONTEXT_HEAD lpContextHead, LPREQUEST lpRequest, UINT uiMsgType);
