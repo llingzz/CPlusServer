@@ -32,6 +32,7 @@ using namespace std;
 #include "include/func.h"
 #include "include/utils.h"
 #include "include/json/json.h"
+#include "include/LockFreeQueue.h"
 #include "threadpool/ThreadPool.h"
 #include "threadpool/MessageQueue.h"
 #include "iocp/IocpModule.h"

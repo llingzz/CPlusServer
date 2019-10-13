@@ -53,8 +53,12 @@ int _tmain(int argc, _TCHAR* argv[])
 	GameServer.Shutdown();
 #elif 0
 	CIocpWorker worker = CIocpWorker();
-	worker.BeginWorkerPool(4, 0);
-	worker.PutRequestToQueue(0, 1, "", "");
+	worker.BeginWorkerPool(4);
+	while (true)
+	{
+		worker.PutRequestToQueue(0, 1, nullptr, nullptr);
+		Sleep(100);
+	}
 	Sleep(10000);
 	worker.EndWorkerPool();
 #elif 1
@@ -63,12 +67,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	{
 		myLogConsoleI("server initialize failed");
 	}
-	char ch;
-	do
-	{
-		ch = 'A';
-		ch = toupper(ch);
-	} while ('Q' != ch);
+	getchar();
 	IocpServer.Shutdown();
 #elif 1
 	CIocpClient* IocpClient = new CIocpClient;

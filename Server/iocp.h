@@ -36,16 +36,15 @@ public:
 	CIocpWorker();
 	virtual ~CIocpWorker();
 
-	virtual BOOL BeginWorkerPool(int nThreads, int nConcurrency);
+	virtual BOOL BeginWorkerPool(int nThreads);
 	virtual BOOL EndWorkerPool();
 
 	virtual BOOL DoWorkLoop();
-	virtual BOOL PutRequestToQueue(DWORD dwSize, DWORD dwKey, void* pParam1, void* pParam2);
-	virtual BOOL PutDataToQueue(DWORD dwSize, DWORD dwKey, WORKER_OV* pWorkerOv);
-	virtual BOOL OnRequest(void* pParam1, void* pParam2);
+	virtual bool PutRequestToQueue(DWORD dwSize, DWORD dwKey, void* pParam1, void* pParam2);
+	virtual bool PutDataToQueue(DWORD dwSize, DWORD dwKey, WORKER_OV* pWorkerOv);
+	virtual bool OnRequest(void* pParam1, void* pParam2);
 
 	virtual WORKER_OV* AllocateWorkerOv(void* pParam1, void* pParam2);
-	virtual WORKER_OV* MoveWorkerOvToFree(WORKER_OV* pWorkerOv);
 
 	virtual UINT GetWorkerCount();
 
@@ -59,8 +58,11 @@ public:
 	std::map<UINT, LPVOID> m_mapWorkers;
 
 	CCritSec m_csWorkerOvList;
-	std::list<LPVOID> m_listWorkerOv;
-	std::list<LPVOID> m_listFreeWorkerOv;
+	std::deque<WORKER_OV*> m_listWorkerOv;
+	std::deque<WORKER_OV*> m_listFreeWorkerOv;
+
+	ArrayLockFreeQueue<WORKER_OV*> m_queueWorkerOv;
+	ArrayLockFreeQueue<WORKER_OV*> m_queueFreeWorkerOv;
 
 	UINT m_nWorkerOvCount;
 	UINT m_nFreeWorkerOvCount;
@@ -242,7 +244,7 @@ public:
 	void*        m_pDataPtr;
 };
 
-class CIocpServer{
+class CIocpServer : public CIocpWorker{
 public:
 	CIocpServer();
 	virtual ~CIocpServer();
@@ -254,7 +256,7 @@ public:
 	virtual bool Initialize(const char* lpSzIp, UINT nPort, UINT nInitAccepts, UINT nMaxAccpets, UINT nMaxSocketBufferListCount, UINT nMaxSocketContextListCount, UINT nMaxSendCount, UINT nThreads, UINT nConcurrency, UINT nMaxConnections);
 	virtual bool Shutdown();
 
-	virtual BOOL OnRequest(void* lpParam1, void* lpParam2);
+	virtual bool OnRequest(void* lpParam1, void* lpParam2);
 
 	virtual bool PostAccept(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
 	virtual bool PostRecv(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
@@ -263,7 +265,7 @@ public:
 	virtual bool OnReceiveData(CSocketContext* pContext, CSocketBuffer* pBuffer);
 	virtual bool OnCheckHeader(void* pData);
 	virtual bool OnVerifyData(CSocketContext* pContext, CSocketBuffer* pBuffer);
-	virtual BOOL OnHandleData(CSocketContext* pContext, CSocketBuffer* pBuffer);
+	virtual bool OnHandleData(CSocketContext* pContext, CSocketBuffer* pBuffer);
 
 	virtual bool ConnectTo(SOCKET hSocket, const char* szIp, const int nPort);
 	virtual bool SendData(SOCKET hSocket, LPCONTEXT_HEAD lpContextHead, LPREQUEST lpRequest, UINT uiMsgType);

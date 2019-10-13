@@ -11,7 +11,7 @@ CIocpWorker::~CIocpWorker()
 
 }
 
-BOOL CIocpWorker::BeginWorkerPool(int nThreads, int nConcurrency)
+BOOL CIocpWorker::BeginWorkerPool(int nThreads)
 {
 	for (int i = 0; i < nThreads; i++)
 	{
@@ -39,12 +39,13 @@ BOOL CIocpWorker::DoWorkLoop()
 	while (TRUE)
 	{
 		WORKER_OV* pWorkerOv = nullptr;
-		WORKER_OV* pFreeWorkerOv = MoveWorkerOvToFree(pWorkerOv);
-		if (pWorkerOv)
+		while (m_queueWorkerOv.pop(pWorkerOv) && pWorkerOv)
 		{
 			OnRequest(pWorkerOv->m_p1, pWorkerOv->m_p2);
+			m_queueFreeWorkerOv.push(pWorkerOv);
 		}
-		if (pFreeWorkerOv)
+		WORKER_OV* pFreeWorkerOv = nullptr;
+		while (m_queueFreeWorkerOv.pop(pFreeWorkerOv) && pFreeWorkerOv)
 		{
 			SAFE_DELETE(pFreeWorkerOv->m_p1);
 			SAFE_DELETE(pFreeWorkerOv->m_p2);
@@ -54,56 +55,26 @@ BOOL CIocpWorker::DoWorkLoop()
 	return FALSE;
 }
 
-BOOL CIocpWorker::PutRequestToQueue(DWORD dwSize, DWORD dwKey, void* pParam1, void* pParam2)
+bool CIocpWorker::PutRequestToQueue(DWORD dwSize, DWORD dwKey, void* pParam1, void* pParam2)
 {
 	WORKER_OV* pWorkerOv = AllocateWorkerOv(pParam1, pParam2);
 	return PutDataToQueue(dwSize, dwKey, pWorkerOv);
 }
 
-BOOL CIocpWorker::PutDataToQueue(DWORD dwSize, DWORD dwKey, WORKER_OV* pWorkerOv)
+bool CIocpWorker::PutDataToQueue(DWORD dwSize, DWORD dwKey, WORKER_OV* pWorkerOv)
 {
-	CAutoLock lock(&m_csWorkerOvList);
-	pWorkerOv->m_ol.hEvent = (HANDLE)dwKey;
-	pWorkerOv->m_ol.Offset = dwSize;
-	m_listWorkerOv.push_back(pWorkerOv);
-	return TRUE;
+	return m_queueWorkerOv.push(pWorkerOv);
 }
 
-BOOL CIocpWorker::OnRequest(void* pParam1, void* pParam2)
+bool CIocpWorker::OnRequest(void* pParam1, void* pParam2)
 {
-	return TRUE;
+	myLogConsoleI("%s %d", __FUNCTION__, ::GetCurrentThreadId());
+	return true;
 }
 
 WORKER_OV* CIocpWorker::AllocateWorkerOv(void* pParam1, void* pParam2)
 {
-	WORKER_OV* pWorkerOv = new WORKER_OV(pParam1, pParam2);
-	return pWorkerOv;
-}
-
-WORKER_OV* CIocpWorker::MoveWorkerOvToFree(WORKER_OV* pWorkerOv)
-{
-	CAutoLock lock(&m_csWorkerOvList);
-	if (m_listWorkerOv.size() > 0)
-	{
-		pWorkerOv = (WORKER_OV*)m_listWorkerOv.front();
-		m_listWorkerOv.pop_front();
-		m_nWorkerOvCount--;
-	}
-	if (nullptr != pWorkerOv)
-	{
-		m_listFreeWorkerOv.push_back(pWorkerOv);
-	}
-	WORKER_OV* pFreeWorkOv = nullptr;
-	if (m_listFreeWorkerOv.size() > 0)
-	{
-		pFreeWorkOv = (WORKER_OV*)m_listFreeWorkerOv.front();
-		m_listFreeWorkerOv.pop_front();
-	}
-	else
-	{
-		m_nFreeWorkerOvCount++;
-	}
-	return pFreeWorkOv;
+	return new WORKER_OV(pParam1, pParam2);
 }
 
 UINT CIocpWorker::GetWorkerCount()
@@ -114,19 +85,6 @@ UINT CIocpWorker::GetWorkerCount()
 
 void CIocpWorker::ClearWorkerOvLists()
 {
-	CAutoLock lock(&m_csWorkerOvList);
-	while (m_listWorkerOv.size() > 0)
-	{
-		WORKER_OV* pWorkerOv = (WORKER_OV*)m_listWorkerOv.front();
-		SAFE_DELETE(pWorkerOv);
-		m_listWorkerOv.pop_front();
-	}
-	while (m_listFreeWorkerOv.size() > 0)
-	{
-		WORKER_OV* pWorkerOv = (WORKER_OV*)m_listFreeWorkerOv.front();
-		SAFE_DELETE(pWorkerOv);
-		m_listFreeWorkerOv.pop_front();
-	}
 }
 
 void CIocpWorker::CloseWorkerHandles()
@@ -149,7 +107,7 @@ unsigned __stdcall CIocpWorker::WorkerThreadFunc(LPVOID lpParam)
 	{
 		pWorker->DoWorkLoop();
 	}
-	myLogConsoleI("%s 线程%d退出...", __FUNCTION__, GetCurrentThreadId());
+	myLogConsoleI("%s 线程%d退出...", __FUNCTION__, ::GetCurrentThreadId());
 	return THREAD_EXIT;
 }
 
@@ -230,9 +188,9 @@ bool CIocpServer::Shutdown()
 	return true;
 }
 
-BOOL CIocpServer::OnRequest(void* lpParam1, void* lpParam2)
+bool CIocpServer::OnRequest(void* lpParam1, void* lpParam2)
 {
-	LPCONTEXT_HEAD lpContext = (LPCONTEXT_HEAD)lpParam1;
+	/*LPCONTEXT_HEAD lpContext = (LPCONTEXT_HEAD)lpParam1;
 	LPREQUEST lpRequest = (LPREQUEST)lpParam2;
 
 	switch (lpRequest->m_stHead.nRequest)
@@ -241,8 +199,8 @@ BOOL CIocpServer::OnRequest(void* lpParam1, void* lpParam2)
 		break;
 	}
 
-	SAFE_DELETE(lpRequest->m_pDataPtr);
-	return TRUE;
+	SAFE_DELETE(lpRequest->m_pDataPtr);*/
+	return true;
 }
 
 bool CIocpServer::BeginBindListen(const char* lpSzIp, UINT nPort, UINT nInitAccepts, UINT nMaxAccpets)
@@ -461,9 +419,10 @@ bool CIocpServer::PostSend(CSocketContext* pContext, CSocketBuffer* pBuffer, DWO
 bool CIocpServer::OnReceiveData(CSocketContext* pContext, CSocketBuffer* pBuffer)
 {
 	if (!pContext || !pBuffer || pBuffer->m_nBufferLen <= 0) { return false; }
+	bool bClose = false;
 
 	/*收到数据包，将数据放入接收缓存区*/
-	//::EnterCriticalSection(&(pContext->m_csLock));
+	::EnterCriticalSection(&(pContext->m_csLock));
 
 	UINT uiPacketHeadLen = sizeof(PACKET_HEAD);
 	UINT uiDataBufLen = pContext->m_objDataBuf.GetBufferLen();
@@ -480,16 +439,13 @@ bool CIocpServer::OnReceiveData(CSocketContext* pContext, CSocketBuffer* pBuffer
 			/*数据包头进行校验，校验失败，服务端主动关闭套接字*/
 			if(!OnCheckHeader(lpPacketHead))
 			{
-				myLogConsoleW("%s 接收数据包校验失败，套接字断开", __FUNCTION__);
-				CloseConnectionContext(pContext);
-				ReleaseSocketBuffer(pBuffer);
+				bClose = true;
 				break;
 			}
 
 			int nDataLen = lpPacketHead->uiPacketLen;
 			PBYTE pData = new BYTE[nDataLen];
 			pContext->m_objDataBuf.Read(pData, nDataLen);
-			// todo
 
 			/*数据包处理*/
 			//OnHandleData(pContext, pBuffer);
@@ -506,13 +462,20 @@ bool CIocpServer::OnReceiveData(CSocketContext* pContext, CSocketBuffer* pBuffer
 		uiDataBufLen = pContext->m_objDataBuf.GetBufferLen();
 		if (uiDataBufLen > 0)
 		{
-			myLogConsoleI("%s 当前套接字下缓冲区数据大小剩余：%d（字节）", __FUNCTION__, uiDataBufLen);
-			myLogConsoleI("%s 当前套接字下请求数据缓冲区数据大小剩余：%d（字节）", __FUNCTION__, pContext->m_objReqBuf.GetBufferLen());
-			myLogConsoleI("%s 当前套接字下回复数据缓冲区数据大小剩余：%d（字节）", __FUNCTION__, pContext->m_objResBuf.GetBufferLen());
+			//myLogConsoleI("%s 当前套接字下缓冲区数据大小剩余：%d（字节）", __FUNCTION__, uiDataBufLen);
+			//myLogConsoleI("%s 当前套接字下请求数据缓冲区数据大小剩余：%d（字节）", __FUNCTION__, pContext->m_objReqBuf.GetBufferLen());
+			//myLogConsoleI("%s 当前套接字下回复数据缓冲区数据大小剩余：%d（字节）", __FUNCTION__, pContext->m_objResBuf.GetBufferLen());
 		}
 	}
-	//::LeaveCriticalSection(&(pContext->m_csLock));
-	return TRUE;
+	::LeaveCriticalSection(&(pContext->m_csLock));
+
+	if (bClose)
+	{
+		myLogConsoleW("%s 接收数据包校验失败，套接字断开", __FUNCTION__);
+		CloseConnectionContext(pContext);
+		ReleaseSocketBuffer(pBuffer);
+	}
+	return true;
 }
 
 bool CIocpServer::OnCheckHeader(void* pData)
@@ -547,7 +510,7 @@ bool CIocpServer::OnVerifyData(CSocketContext* pContext, CSocketBuffer* pBuffer)
 	return true;
 }
 
-BOOL CIocpServer::OnHandleData(CSocketContext* pContext, CSocketBuffer* pBuffer)
+bool CIocpServer::OnHandleData(CSocketContext* pContext, CSocketBuffer* pBuffer)
 {
 	/*数据包处理*/
 	LPPACKET_HEAD lpHead = (LPPACKET_HEAD)(PBYTE(pContext->m_objDataBuf.GetBuffer()));
@@ -570,7 +533,7 @@ BOOL CIocpServer::OnHandleData(CSocketContext* pContext, CSocketBuffer* pBuffer)
 	}
 	SAFE_DELETE_ARRAY(pFullData);
 
-	return TRUE;
+	return true;
 }
 
 bool CIocpServer::ConnectTo(SOCKET hSocket, const char* szIp, const int nPort)

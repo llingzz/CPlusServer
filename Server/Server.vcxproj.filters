@@ -93,6 +93,12 @@
     <ClInclude Include="timer\timer.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="include\LockFreeQueue.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="include\LockFreeQueueImpl.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">

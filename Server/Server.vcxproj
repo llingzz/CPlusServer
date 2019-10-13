@@ -92,6 +92,8 @@
     <ClInclude Include="db\DBOperator.h" />
     <ClInclude Include="HttpManager.h" />
     <ClInclude Include="include\func.h" />
+    <ClInclude Include="include\LockFreeQueue.h" />
+    <ClInclude Include="include\LockFreeQueueImpl.h" />
     <ClInclude Include="include\utils.h" />
     <ClInclude Include="iocp.h" />
     <ClInclude Include="redis\RedisManager.h" />
