@@ -54,12 +54,7 @@ int _tmain(int argc, _TCHAR* argv[])
 #elif 0
 	CIocpWorker worker = CIocpWorker();
 	worker.BeginWorkerPool(4);
-	while (true)
-	{
-		worker.PutRequestToQueue(0, 1, nullptr, nullptr);
-		Sleep(100);
-	}
-	Sleep(10000);
+	getchar();
 	worker.EndWorkerPool();
 #elif 1
 	CIocpServer IocpServer = CIocpServer();

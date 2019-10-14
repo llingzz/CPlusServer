@@ -80,6 +80,8 @@
     <Text Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\Server\include\LockFreeQueue.h" />
+    <ClInclude Include="..\Server\include\LockFreeQueueImpl.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>

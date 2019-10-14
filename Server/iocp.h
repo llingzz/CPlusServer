@@ -1,4 +1,5 @@
 #pragma once
+#define USER_IOCP 1
 
 typedef enum IoType {
 	enIoInit,
@@ -56,10 +57,6 @@ public:
 public:
 	CCritSec m_csWorkers;
 	std::map<UINT, LPVOID> m_mapWorkers;
-
-	CCritSec m_csWorkerOvList;
-	std::deque<WORKER_OV*> m_listWorkerOv;
-	std::deque<WORKER_OV*> m_listFreeWorkerOv;
 
 	ArrayLockFreeQueue<WORKER_OV*> m_queueWorkerOv;
 	ArrayLockFreeQueue<WORKER_OV*> m_queueFreeWorkerOv;
@@ -126,9 +123,6 @@ public:
 
 	CBuffer           m_objReqBuf;
 	CBuffer           m_objResBuf;
-
-	LPFN_CONNECTEX    m_lpfnConnectEx;
-	LPFN_DISCONNECTEX m_lpfnDisconnectEx;
 
 	CRITICAL_SECTION  m_csLock;
 
@@ -262,13 +256,12 @@ public:
 	virtual bool PostRecv(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
 	virtual bool PostSend(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
 
-	virtual bool OnReceiveData(CSocketContext* pContext, CSocketBuffer* pBuffer);
-	virtual bool OnCheckHeader(void* pData);
+	virtual bool OnReceiveData(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwTrans);
+	virtual bool OnCheckHeader(LPPACKET_HEAD lpPacketHead);
 	virtual bool OnVerifyData(CSocketContext* pContext, CSocketBuffer* pBuffer);
-	virtual bool OnHandleData(CSocketContext* pContext, CSocketBuffer* pBuffer);
+	virtual bool OnHandleData(LPPACKET_HEAD lpPacketHead, DWORD dwKey, DWORD dwTrans);
 
-	virtual bool ConnectTo(SOCKET hSocket, const char* szIp, const int nPort);
-	virtual bool SendData(SOCKET hSocket, LPCONTEXT_HEAD lpContextHead, LPREQUEST lpRequest, UINT uiMsgType);
+	virtual bool SendData(SOCKET hSocket, void* pDataPtr, int nDataLen, UINT uiMsgType);
 
 	virtual void ComposePacket(CBuffer& dstBuf, UINT nMsgType, LPVOID pData, UINT nPacketSize);
 	virtual void DecomposePacket(CBuffer& srcBuf, CBuffer& dstBuf, int nPacketSize);
@@ -302,7 +295,7 @@ protected:
 	static unsigned __stdcall AcceptThreadFunc(LPVOID lpParam);
 	static unsigned __stdcall WorkerThreadFunc(LPVOID lpParam);
 
-private:
+protected:
 	void* _GetExtendFunc(const SOCKET& socket, const GUID& guid);
 
 public:
@@ -356,6 +349,7 @@ public:
 	virtual ~CIocpClient();
 
 public:
+	virtual void InitializeMembers();
 	virtual BOOL Create(const char* lpSzIp, UINT nPort, UINT nMaxConnections, UINT nThreads, UINT nConcurrency);
 	virtual BOOL BeginConnect(const char* lpSzIp, UINT nPort);
 	virtual BOOL Destroy();
@@ -364,4 +358,8 @@ public:
 
 	virtual bool SendData(SOCKET hSocket, LPCONTEXT_HEAD lpContextHead, LPREQUEST lpRequest, UINT uiMsgType);
 	virtual BOOL SendCast(SOCKET hSocket, LPCONTEXT_HEAD lpContextHead, LPREQUEST lpRequest, UINT uiMsgType);
+
+public:
+	LPFN_CONNECTEX m_lpfnConnectEx;
+	LPFN_DISCONNECTEX m_lpfnDisconnectEx;
 };

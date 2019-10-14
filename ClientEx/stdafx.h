@@ -33,4 +33,6 @@ using namespace std;
 #include "../Server/common/CommonReq.h"
 #include "../Server/include/func.h"
 #include "../Server/include/utils.h"
+#include "../Server/include/atomic_ops.h"
+#include "../Server/include/LockFreeQueue.h"
 #include "../Server/iocp.h"

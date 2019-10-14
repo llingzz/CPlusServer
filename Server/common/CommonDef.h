@@ -78,6 +78,13 @@ typedef enum enLogLevel {
 #define		myLogFileT(fmt, ...)		CLog::GetInstance()->SetLogLevel(enTRACE)->WriteLogFileEx(fmt, __VA_ARGS__)
 #define		myLogFileE(fmt, ...)		CLog::GetInstance()->SetLogLevel(enERROR)->WriteLogFileEx(fmt, __VA_ARGS__)
 #define		myLogFileF(fmt, ...)		CLog::GetInstance()->SetLogLevel(enFATAL)->WriteLogFileEx(fmt, __VA_ARGS__)
+//控制台日志快捷宏
+#define		myLogConsoleI(fmt, ...)		//printf(fmt, __VA_ARGS__)
+#define		myLogConsoleD(fmt, ...)		//printf(fmt, __VA_ARGS__)
+#define		myLogConsoleW(fmt, ...)		//printf(fmt, __VA_ARGS__)
+#define		myLogConsoleT(fmt, ...)		//printf(fmt, __VA_ARGS__)
+#define		myLogConsoleE(fmt, ...)		//printf(fmt, __VA_ARGS__)
+#define		myLogConsoleF(fmt, ...)		//printf(fmt, __VA_ARGS__)
 #endif
 
 //完成端口上投递IO操作类型

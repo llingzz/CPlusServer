@@ -39,7 +39,7 @@
 #ifndef __ARRAY_LOCK_FREE_QUEUE_H__
 #define __ARRAY_LOCK_FREE_QUEUE_H__
 
-#include "include/atomic_ops.h" // atomic operations wrappers 
+//#include "include/atomic_ops.h" // atomic operations wrappers 
 
 #define ARRAY_LOCK_FREE_Q_DEFAULT_SIZE (1<<16) // 2^17 = 131,072
 
