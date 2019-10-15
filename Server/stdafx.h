@@ -8,7 +8,7 @@
 #define _CRTDBG_MAP_ALLOC
 #include <stdlib.h>
 #include <crtdbg.h>
-#define new  new(_CLIENT_BLOCK, __FILE__, __LINE__)
+#define new new(_CLIENT_BLOCK, __FILE__, __LINE__)
 #define _CRT_SECURE_NO_WARNINGS
 
 #include "targetver.h"

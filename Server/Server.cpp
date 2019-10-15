@@ -64,7 +64,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	}
 	getchar();
 	IocpServer.Shutdown();
-#elif 1
+#elif 0
 	CIocpClient* IocpClient = new CIocpClient;
 	BOOL bRet = IocpClient->Create("127.0.0.1", 8888, 5, 4, 0);
 	if (bRet)
@@ -351,9 +351,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	//worker.EndWorkerPool();
 #else
 #endif
-
 	getchar();
-
 	_CrtDumpMemoryLeaks();
 	return 0;
 }

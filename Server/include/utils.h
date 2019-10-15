@@ -20,32 +20,13 @@ private:
 public:
 	static T* GetInstance()
 	{
-		if (m_pInstance)
-		{
-			return m_pInstance;
-		}
-		m_pInstance = new T;
-		return m_pInstance;
+		static T instance;
+		return &instance;
 	}
-
-	static void DelInstance()
-	{
-		if (m_pInstance)
-		{
-			delete m_pInstance;
-			m_pInstance = NULL;
-		}
-	}
-
-private:
-	static T* m_pInstance;
 };
 
-template<typename T>
-T* CSingle<T>::m_pInstance = NULL;
-
 /*临界区对象，线程同步*/
-class CCritSec : public CSingle<CCritSec>
+class CCritSec
 {
 public:
 	CCritSec() { ::InitializeCriticalSection(&m_csCritSec); }
@@ -116,8 +97,10 @@ public:
 	~CLog()
 	{
 		m_nLogLevel = enDEFAULT;
-		fclose(m_pFp);
-		m_pFp = NULL;
+		if (m_pFp) {
+			fclose(m_pFp);
+			m_pFp = NULL;
+		}
 		ZeroMemory(m_szFilePath, MAX_PATH);
 		ZeroMemory(m_szFileName, MAX_PATH);
 		ZeroMemory(m_szLogRrefix, BASE_DATA_BUF_SIZE);

@@ -16,7 +16,6 @@ typedef enum MsgType {
 	enAcknowledge,
 };
 
-// 工作队列数据参数
 class WORKER_OV
 {
 public:
@@ -31,7 +30,7 @@ public:
 		m_p2 = p2;
 	}
 };
-// 自定义工作队列（基于完成端口）
+
 class CIocpWorker {
 public:
 	CIocpWorker();
@@ -52,11 +51,11 @@ public:
 	virtual void ClearWorkerOvLists();
 	virtual void CloseWorkerHandles();
 
-	static unsigned __stdcall WorkerThreadFunc(LPVOID lpParam);
+	static unsigned __stdcall WorkerOvThreadFunc(LPVOID lpParam);
 
 public:
 	CCritSec m_csWorkers;
-	std::map<UINT, LPVOID> m_mapWorkers;
+	std::map<UINT, HANDLE> m_mapWorkers;
 
 	ArrayLockFreeQueue<WORKER_OV*> m_queueWorkerOv;
 	ArrayLockFreeQueue<WORKER_OV*> m_queueFreeWorkerOv;
@@ -86,14 +85,8 @@ public:
 	}
 	virtual ~CSocketBuffer()
 	{
-		if (m_pBuffer)
-		{
-			SAFE_DELETE(m_pBuffer);
-		}
-		if (m_pNext)
-		{
-			SAFE_DELETE(m_pNext);
-		}
+		SAFE_DELETE(m_pBuffer);
+		SAFE_DELETE(m_pNext);
 	}
 };
 
@@ -151,18 +144,9 @@ public:
 	}
 	virtual ~CSocketContext()
 	{
-		if (m_pWaitingRecv)
-		{
-			SAFE_DELETE(m_pWaitingRecv);
-		}
-		if (m_pWaitingSend)
-		{
-			SAFE_DELETE(m_pWaitingSend);
-		}
-		if (m_pNext)
-		{
-			SAFE_DELETE(m_pNext);
-		}
+		SAFE_DELETE(m_pWaitingRecv);
+		SAFE_DELETE(m_pWaitingSend);
+		SAFE_DELETE(m_pNext);
 		::DeleteCriticalSection(&m_csLock);
 	}
 };
@@ -196,14 +180,7 @@ public:
 	}
 	virtual ~CSocketListenContext()
 	{
-		if (m_pAcceptPendingList)
-		{
-			SAFE_DELETE(m_pAcceptPendingList);
-		}
-		if (m_pNext)
-		{
-			SAFE_DELETE(m_pNext);
-		}
+		SAFE_DELETE(m_pNext);
 		m_lpfnAcceptEx = NULL;
 		m_lpfnGetAcceptExSockaddrs = NULL;
 		::DeleteCriticalSection(&m_csLock);
@@ -272,12 +249,13 @@ public:
 	virtual void HandleIoRead(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwTrans, DWORD dwError);
 	virtual void HandleIoWrite(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwTrans, DWORD dwError);
 
-	virtual BOOL InsertPendingAccepts(CSocketContext* pContext, CSocketBuffer* pBuffer);
-	virtual BOOL RemovePendingAccepts(CSocketBuffer* pBuffer);
+	virtual bool InsertPendingAccepts(CSocketContext* pContext, CSocketBuffer* pBuffer);
+	virtual bool RemovePendingAccepts(CSocketBuffer* pBuffer);
 
-	virtual BOOL InsertConnectionContext(CSocketContext* pContext);
-	virtual BOOL CloseConnectionContext(CSocketContext* pContext);
-	virtual BOOL ClearConnectionContext();
+	virtual bool InsertConnectionContext(CSocketContext* pContext);
+	virtual bool RemoveConnectionContext(CSocketContext* pContext);
+	virtual bool CloseConnectionContext(CSocketContext* pContext);
+	virtual bool ClearConnectionContext();
 
 	virtual CSocketBuffer* AllocateSocketBuffer(UINT nBufferLen);
 	virtual void ReleaseSocketBuffer(CSocketBuffer* pBuffer);
