@@ -405,13 +405,13 @@ void CClient::SendData(SOCKET socket, UINT nRequest, void* pData, int nDataLen)
 
 int _tmain(int argc, _TCHAR* argv[])
 {
-#if 0
+#if 1
 	for (auto i = 0; i < 1; i++)
 	{
 		CClient* pClient = new CClient("127.0.0.1", "127.0.0.1", 8888, 1);
 		pClient->Run();
 	}
-#elif 1
+#elif 0
 	CClient* pClient = new CClient("127.0.0.1", "127.0.0.1", 8888, 1);
 	pClient->TestIocpConnect();
 #else

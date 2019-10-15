@@ -328,14 +328,9 @@ public:
 
 public:
 	virtual void InitializeMembers();
-	virtual BOOL Create(const char* lpSzIp, UINT nPort, UINT nMaxConnections, UINT nThreads, UINT nConcurrency);
-	virtual BOOL BeginConnect(const char* lpSzIp, UINT nPort);
-	virtual BOOL Destroy();
-
-	virtual bool OnReceiveData(CSocketContext* pContext, CSocketBuffer* pBuffer);
-
-	virtual bool SendData(SOCKET hSocket, LPCONTEXT_HEAD lpContextHead, LPREQUEST lpRequest, UINT uiMsgType);
-	virtual BOOL SendCast(SOCKET hSocket, LPCONTEXT_HEAD lpContextHead, LPREQUEST lpRequest, UINT uiMsgType);
+	virtual bool Create(const char* lpSzIp, UINT nPort, UINT nMaxConnections, UINT nThreads, UINT nConcurrency);
+	virtual bool BeginConnect(const char* lpSzIp, UINT nPort);
+	virtual void Destroy();
 
 public:
 	LPFN_CONNECTEX m_lpfnConnectEx;
