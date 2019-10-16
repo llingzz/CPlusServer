@@ -6,7 +6,7 @@
 int _tmain(int argc, _TCHAR* argv[])
 {
 	CIocpClient* IocpClient = new CIocpClient;
-	BOOL bRet = IocpClient->Create("127.0.0.1", 8888, 5, 4, 0);
+	BOOL bRet = IocpClient->Create("127.0.0.1", 8888, 10, 10, 10000, 4, 0, 1);
 	if (bRet)
 	{
 		PACKET_HEAD stuHead = { 0 };

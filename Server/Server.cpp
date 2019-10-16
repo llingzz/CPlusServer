@@ -56,7 +56,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	worker.BeginWorkerPool(4);
 	getchar();
 	worker.EndWorkerPool();
-#elif 1
+#elif 0
 	CIocpServer IocpServer = CIocpServer();
 	if (!IocpServer.Initialize("127.0.0.1", 8888, 10, 20, 10, 10, 10, 10, 0, 10))
 	{
@@ -64,41 +64,20 @@ int _tmain(int argc, _TCHAR* argv[])
 	}
 	getchar();
 	IocpServer.Shutdown();
-#elif 0
+#elif 1
 	CIocpClient* IocpClient = new CIocpClient;
-	BOOL bRet = IocpClient->Create("127.0.0.1", 8888, 5, 4, 0);
-	if (bRet)
+	if (IocpClient->Create("127.0.0.1", 8888, 10, 20, 10000, 4, 0, 1))
 	{
-		LPCONTEXT_HEAD lpHead = new CONTEXT_HEAD;
-		LPREQUEST lpRequest = new REQUEST;
-
-		PACKET_HEAD stuHead = { 0 };
-		std::string str = "helloworld";
-		stuHead.uiPacketNo = sizeof(PACKET_HEAD) + str.size() - sizeof(int);
-		stuHead.uiMsgType = 1;
-		stuHead.uiPacketLen = str.size();
-
-		CBuffer myDataPool;
-		myDataPool.Write((PBYTE)&stuHead, sizeof(PACKET_HEAD));
-		myDataPool.Write((PBYTE)str.c_str(), str.size());
-
-		lpRequest->m_pDataPtr = myDataPool.GetBuffer();
-		lpRequest->m_nDataLen = myDataPool.GetBufferLen();
-		IocpClient->SendCast(0, lpHead, lpRequest, enRequest);
-		Sleep(1000);
-		IocpClient->SendCast(0, lpHead, lpRequest, enRequest);
+		/*while (true)
+		{*/
+			SOCKET hSocket = IocpClient->GetSocket();
+			IocpClient->SendBufferData("hello", 6);
+		/*	Sleep(1000);
+		}*/
 	}
-#elif 0
-	CIocpWorker worker = CIocpWorker();
-	worker.BeginWorkerPool(10, 0);
-	worker.PutRequestToQueue(0, 10, "1234", "5678");
-	worker.PutRequestToQueue(0, 10, "1234", "5678");
-	worker.PutRequestToQueue(0, 10, "1234", "5678");
-	worker.PutRequestToQueue(0, 10, "1234", "5678");
-	worker.PutRequestToQueue(0, 10, "1234", "5678");
-	worker.PutRequestToQueue(0, 10, "1234", "5678");
-	worker.PutRequestToQueue(0, 10, "1234", "5678");
-	worker.EndWorkerPool();
+	getchar();
+	IocpClient->Destroy();
+	SAFE_DELETE(IocpClient);
 #elif 0	//²âÊÔÄÚ´æ³Ø
 	char test1[] = "test1";
 	char test2[] = "test2";

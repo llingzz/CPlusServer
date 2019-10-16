@@ -86,7 +86,6 @@ public:
 	virtual ~CSocketBuffer()
 	{
 		SAFE_DELETE(m_pBuffer);
-		SAFE_DELETE(m_pNext);
 	}
 };
 
@@ -139,6 +138,9 @@ public:
 		m_pWaitingSend = NULL;
 		m_nPacketNo = 0;
 		m_nSessionID = 0;
+		m_objDataBuf.ClearBuffer();
+		m_objReqBuf.ClearBuffer();
+		m_objResBuf.ClearBuffer();
 		::InitializeCriticalSection(&m_csLock);
 		m_pNext = NULL;
 	}
@@ -146,7 +148,22 @@ public:
 	{
 		SAFE_DELETE(m_pWaitingRecv);
 		SAFE_DELETE(m_pWaitingSend);
-		SAFE_DELETE(m_pNext);
+		m_hSocket = INVALID_SOCKET;
+		m_lToken = 0;
+		ZeroMemory(&m_local, sizeof(m_local));
+		ZeroMemory(&m_remote, sizeof(m_remote));
+		m_bClose = FALSE;
+		m_nNextReadSerialNo = 0;
+		m_nCurrentReadSerialNo = 0;
+		m_nPostedSend = 0;
+		m_nPostedRecv = 0;
+		m_nPendingRecv = 0;
+		m_nPendingSend = 0;
+		m_nPacketNo = 0;
+		m_nSessionID = 0;
+		m_objDataBuf.ClearBuffer();
+		m_objReqBuf.ClearBuffer();
+		m_objResBuf.ClearBuffer();
 		::DeleteCriticalSection(&m_csLock);
 	}
 };
@@ -170,6 +187,9 @@ public:
 	CSocketListenContext()
 	{
 		::InitializeCriticalSection(&m_csLock);
+		m_hSocket = INVALID_SOCKET;
+		m_hAcceptHandle = INVALID_HANDLE_VALUE;
+		m_hRepostHandle = INVALID_HANDLE_VALUE;
 		m_pAcceptPendingList = NULL;
 		m_lpfnAcceptEx = NULL;
 		m_lpfnGetAcceptExSockaddrs = NULL;
@@ -180,9 +200,15 @@ public:
 	}
 	virtual ~CSocketListenContext()
 	{
-		SAFE_DELETE(m_pNext);
 		m_lpfnAcceptEx = NULL;
 		m_lpfnGetAcceptExSockaddrs = NULL;
+		m_pAcceptPendingList = NULL;
+		m_hSocket = INVALID_SOCKET;
+		m_hAcceptHandle = INVALID_HANDLE_VALUE;
+		m_hRepostHandle = INVALID_HANDLE_VALUE;
+		m_nAcceptPendingListCount = 0;
+		m_nInitAccpets = 0;
+		m_nRepostCount = 0;
 		::DeleteCriticalSection(&m_csLock);
 	}
 };
@@ -328,9 +354,13 @@ public:
 
 public:
 	virtual void InitializeMembers();
-	virtual bool Create(const char* lpSzIp, UINT nPort, UINT nMaxConnections, UINT nThreads, UINT nConcurrency);
+	virtual bool Create(const char* lpSzIp, UINT nPort, UINT nMaxSocketBufferListCount, UINT nMaxSocketContextListCount, UINT nMaxSendCount, UINT nThreads, UINT nConcurrency, UINT nMaxConnections);
 	virtual bool BeginConnect(const char* lpSzIp, UINT nPort);
 	virtual void Destroy();
+
+	virtual SOCKET GetSocket();
+
+	virtual bool SendBufferData(void* pDataPtr, int nDataLen);
 
 public:
 	LPFN_CONNECTEX m_lpfnConnectEx;

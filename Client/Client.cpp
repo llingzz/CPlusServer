@@ -411,7 +411,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		CClient* pClient = new CClient("127.0.0.1", "127.0.0.1", 8888, 1);
 		pClient->Run();
 	}
-#elif 0
+#elif 1
 	CClient* pClient = new CClient("127.0.0.1", "127.0.0.1", 8888, 1);
 	pClient->TestIocpConnect();
 #else
