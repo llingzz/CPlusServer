@@ -2,9 +2,10 @@
 //
 
 #include "stdafx.h"
-
 #include <winhttp.h>
 #pragma comment(lib, "Winhttp.lib")
+
+#include "tools/cpp/protocol.pb.h"
 
 void TestTimer(void* pParam)
 {
@@ -22,36 +23,7 @@ BOOL testConsume(LPMQ_MESSAGE pMessage)
 
 int _tmain(int argc, _TCHAR* argv[])
 {
-#if 0	//·şÎñÆ÷Æô¶¯
-	CBaseServer GameServer = CBaseServer();
-	if (FALSE == GameServer.Initialize())
-	{
-		FILE_ERROR("%s iniatialize failed...", __FUNCTION__);
-		CONSOLE_ERROR("%s iniatialize failed...", __FUNCTION__);
-	}
-	char ch;
-	do
-	{
-		ch = 'A';
-		ch = toupper(ch);
-
-	} while ('Q' != ch);
-	GameServer.Shutdown();
-#elif 0
-	CPlusServer GameServer = CPlusServer();
-	if (FALSE == GameServer.Initialize())
-	{
-		myLogFileE("%s gameserver iniatialize failed...", __FUNCTION__);
-		myLogConsoleE("%s gameserver iniatialize failed...", __FUNCTION__);
-	}
-	char ch;
-	do
-	{
-		ch = 'A';
-		ch = toupper(ch);
-	} while ('Q' != ch);
-	GameServer.Shutdown();
-#elif 0
+#if 0
 	CIocpWorker worker = CIocpWorker();
 	worker.BeginWorkerPool(4);
 	getchar();
@@ -65,19 +37,37 @@ int _tmain(int argc, _TCHAR* argv[])
 	getchar();
 	IocpServer.Shutdown();
 #elif 1
-	CIocpClient* IocpClient = new CIocpClient;
-	if (IocpClient->Create("127.0.0.1", 8888, 10, 20, 10000, 4, 0, 1))
+	CIocpClient IocpClient = CIocpClient();
+	if (IocpClient.Create("127.0.0.1", 8888, 10, 20, 10000, 4, 0, 1))
 	{
-		/*while (true)
-		{*/
-			SOCKET hSocket = IocpClient->GetSocket();
-			IocpClient->SendBufferData("hello", 6);
-		/*	Sleep(1000);
-		}*/
+		SOCKET hSocket = IocpClient.GetSocket();
+		IocpClient.SendBufferData("hello", 6);
 	}
 	getchar();
-	IocpClient->Destroy();
-	SAFE_DELETE(IocpClient);
+	IocpClient.Destroy();
+#elif 1	// ²âÊÔprotobuf
+	test_protobuf::inner_test innerTest = {};
+	innerTest.set_ninnertest(0);
+	innerTest.set_strinnertest("InnerTest");
+
+	test_protobuf::test Test = {};
+	Test.set_ntest(1);
+	Test.set_strtest("Test");
+	Test.set_sntest(-1);
+	Test.set_allocated_innertest(&innerTest);
+	Test.add_ntestarray(1);
+	std::cout << Test.ntestarray(0) << std::endl;
+
+	std::string output;
+	void* test = (void*)malloc(Test.ByteSize());
+	Test.SerializeToArray(test, Test.ByteSize());
+	Test.SerializePartialToString(&output);
+	std::cout << output << std::endl;
+
+	test_protobuf::test out = {};
+	out.ParseFromArray(test, Test.ByteSize());
+	free(test);
+	getchar();
 #elif 0	//²âÊÔÄÚ´æ³Ø
 	char test1[] = "test1";
 	char test2[] = "test2";

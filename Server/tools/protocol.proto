@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package test_protobuf;
+
+message inner_test{
+	int32 nInnerTest = 1;
+	string strInnerTest = 2;
+}
+
+message test{
+	int32 nTest = 1;
+	sint32 snTest = 2;
+	string strTest = 3;
+	enum enTest{
+		DEFAULT = 0;
+		TEST 	= 1;
+	}
+	inner_test innerTest = 4;
+	repeated int32 nTestArray = 5;
+}

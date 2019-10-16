@@ -11,6 +11,15 @@
 #define new new(_CLIENT_BLOCK, __FILE__, __LINE__)
 #define _CRT_SECURE_NO_WARNINGS
 
+#if _DEBUG
+#pragma comment(lib,"libprotobufd.lib")
+#pragma comment(lib,"libprotocd.lib")
+#else
+#pragma comment(lib,"libprotobuf.lib")
+#pragma comment(lib,"libprotoc.lib")
+
+#endif
+
 #include "targetver.h"
 
 #include <stdio.h>

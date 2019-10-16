@@ -41,7 +41,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(SolutionDir);$(SolutionDir)/redis/redis;$(SolutionDir)/Server/include/json;$(SolutionDir)/Server/include/librabbitmq</IncludePath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(SolutionDir);$(SolutionDir)/redis/redis;$(SolutionDir)/Server/include/json;$(SolutionDir)/Server/include/librabbitmq;$(SolutionDir)/Server/include</IncludePath>
     <ReferencePath>$(ReferencePath)</ReferencePath>
     <LibraryPath>$(SolutionDir)/Server/lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
@@ -60,7 +60,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>json_vc71_libmtd.lib;librabbitmqd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>json_vc71_libmtd.lib;librabbitmqd.lib;libprotobufd.lib;libprotocd.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -84,20 +84,7 @@
     <Text Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="common\CommonDef.h" />
-    <ClInclude Include="common\CommonReq.h" />
-    <ClInclude Include="CPlusClient.h" />
-    <ClInclude Include="CPlusServer.h" />
-    <ClInclude Include="db\DBCommon.h" />
-    <ClInclude Include="db\DBOperator.h" />
-    <ClInclude Include="HttpManager.h" />
-    <ClInclude Include="include\func.h" />
-    <ClInclude Include="include\LockFreeQueue.h" />
-    <ClInclude Include="include\LockFreeQueueImpl.h" />
-    <ClInclude Include="include\utils.h" />
     <ClInclude Include="iocp.h" />
-    <ClInclude Include="redis\RedisManager.h" />
-    <ClInclude Include="redis\RedisOperator.h" />
     <ClInclude Include="redis\redis\async.h">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</ExcludedFromBuild>
     </ClInclude>
@@ -121,18 +108,10 @@
     </ClInclude>
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
-    <ClInclude Include="threadpool\MessageQueue.h" />
-    <ClInclude Include="threadpool\ThreadPool.h" />
-    <ClInclude Include="timer\timer.h" />
+    <ClInclude Include="tools\Cpp\protocol.pb.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="CPlusClient.cpp" />
-    <ClCompile Include="CPlusServer.cpp" />
-    <ClCompile Include="db\DBOperator.cpp" />
-    <ClCompile Include="HttpManager.cpp" />
     <ClCompile Include="iocp.cpp" />
-    <ClCompile Include="redis\RedisManager.cpp" />
-    <ClCompile Include="redis\RedisOperator.cpp" />
     <ClCompile Include="redis\redis\async.c">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</ExcludedFromBuild>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
@@ -162,9 +141,9 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="threadpool\MessageQueue.cpp" />
-    <ClCompile Include="threadpool\ThreadPool.cpp" />
-    <ClCompile Include="timer\timer.cpp" />
+    <ClCompile Include="tools\cpp\protocol.pb.cc">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+    </ClCompile>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
