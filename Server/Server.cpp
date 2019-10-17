@@ -28,7 +28,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	worker.BeginWorkerPool(4);
 	getchar();
 	worker.EndWorkerPool();
-#elif 0
+#elif 1
 	CIocpServer IocpServer = CIocpServer();
 	if (!IocpServer.Initialize("127.0.0.1", 8888, 10, 20, 10, 10, 10, 10, 0, 10))
 	{
@@ -36,7 +36,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	}
 	getchar();
 	IocpServer.Shutdown();
-#elif 1
+#elif 0
 	CIocpClient IocpClient = CIocpClient();
 	if (IocpClient.Create("127.0.0.1", 8888, 10, 20, 10000, 4, 0, 1))
 	{

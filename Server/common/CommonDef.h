@@ -97,10 +97,10 @@ typedef enum tagOPE_TYPE{
 
 //工作者线程
 class CPlusServer;
-typedef struct _tagWORKER_THREAD_PARAM{
+typedef struct _tagWORKER_THREAD_PARAM1{
 	CPlusServer*	pServer;
 	int				nThreadId;
-}WORKER_THREAD_PARAM, *LPWORKER_THREAD_PARAM;
+}WORKER_THREAD_PARAM1, *LPWORKER_THREAD_PARAM1;
 
 //IO操作上下文（每一个重叠操作的参数）
 typedef struct _tagIO_CONTEXT{

@@ -6,14 +6,31 @@
 #pragma once
 
 #include "targetver.h"
-
 #include <stdio.h>
 #include <tchar.h>
+#include <string.h>
 #include <iostream>
 #include <vector>
+#include <list>
+#include <string>
+#include <queue>
+#include <map>
+#include <deque>
+#include <ctime>
+#include <process.h>
+#include <winsock2.h>
+#include <windows.h>
+#pragma comment(lib,"ws2_32.lib")
+#include <Mswsock.h>
 using namespace std;
 
 
 // TODO:  在此处引用程序需要的其他头文件
-#include "Utilities.h"
+#include "../Server/common/CommonDef.h"
+#include "../Server/common/CommonReq.h"
+#include "../Server/include/func.h"
+#include "../Server/include/utils.h"
+#include "../Server/include/atomic_ops.h"
+#include "../Server/include/LockFreeQueue.h"
+#include "../Server/iocp.h"
 #include "Client.h"

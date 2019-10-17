@@ -2,15 +2,6 @@
 //
 
 #include "stdafx.h"
-#include <ctime>
-#include <process.h>
-#include <winsock2.h>
-#include <windows.h>
-#pragma comment(lib,"ws2_32.lib")
-#include <Mswsock.h>
-
-#define SAFE_RELEASE_HANDLE(x)               {if(x != NULL && x!=INVALID_HANDLE_VALUE){ CloseHandle(x);x = NULL;}}
-#define SAFE_RELEASE(x)                      {if(x != NULL ){delete x;x=NULL;}}
 
 const UINT32 table[] = {
 	0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419, 0x706af48f, 0xe963a535, 0x9e6495a3,
@@ -314,12 +305,12 @@ void CClient::CleanUp()
 {
 	if (m_hShutdownEvent == NULL) return;
 
-	SAFE_RELEASE(m_phSendThreads);
-	SAFE_RELEASE(m_phRecvThreads);
+	SAFE_DELETE(m_phSendThreads);
+	SAFE_DELETE(m_phRecvThreads);
 
 	SAFE_RELEASE_HANDLE(m_hConnectionThread);
 
-	SAFE_RELEASE(m_pWorkerThreadParam);
+	SAFE_DELETE(m_pWorkerThreadParam);
 
 	SAFE_RELEASE_HANDLE(m_hShutdownEvent);
 }
@@ -330,7 +321,7 @@ unsigned int __stdcall CClient::ConnectionThread(LPVOID lpParam)
 	CClient* pClient = (CClient*)pParam->pClient;
 	pClient->InitialiazeConnection();
 
-	SAFE_RELEASE(pParam);
+	SAFE_DELETE(pParam);
 	return 0;
 }
 
@@ -405,15 +396,37 @@ void CClient::SendData(SOCKET socket, UINT nRequest, void* pData, int nDataLen)
 
 int _tmain(int argc, _TCHAR* argv[])
 {
-#if 1
+#if 0
 	for (auto i = 0; i < 1; i++)
 	{
 		CClient* pClient = new CClient("127.0.0.1", "127.0.0.1", 8888, 1);
 		pClient->Run();
 	}
 #elif 1
-	CClient* pClient = new CClient("127.0.0.1", "127.0.0.1", 8888, 1);
-	pClient->TestIocpConnect();
+	CIocpClient IocpClient = CIocpClient();
+	if (IocpClient.Create("127.0.0.1", 8888, 10, 20, 10000, 4, 0, 1))
+	{
+		PACKET_HEAD stuHead = { 0 };
+		std::string str = "hello";
+		stuHead.uiPacketNo = sizeof(PACKET_HEAD) + str.size() - sizeof(int);
+		stuHead.uiMsgType = 1;
+		stuHead.uiPacketLen = str.size();
+
+		CONTEXT_HEAD lpHead = { 0 };
+		REQUEST lpRequest;
+
+		CBuffer myDataPool;
+		myDataPool.Write((PBYTE)& stuHead, sizeof(PACKET_HEAD));
+		myDataPool.Write((PBYTE)str.c_str(), str.size());
+
+		lpRequest.m_pDataPtr = myDataPool.GetBuffer();
+		lpRequest.m_nDataLen = myDataPool.GetBufferLen();
+
+		SOCKET hSocket = IocpClient.GetSocket();
+		IocpClient.SendBufferData("hello", 6);
+}
+	getchar();
+	IocpClient.Destroy();
 #else
 #endif
 	getchar();

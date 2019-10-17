@@ -746,8 +746,6 @@ void CIocpServer::HandleIoAccept(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwTr
 			::CreateIoCompletionPort((HANDLE)pContext->m_hSocket, m_hCompletionPort, (DWORD)pContext, 0);
 			myLogConsoleI("%s:新套接字%d连接建立", __FUNCTION__, pContext->m_hSocket);
 
-			SendData(pContext->m_hSocket, nullptr, 0, 1);
-
 			/*为新连接投递一个Read请求*/
 			CSocketBuffer* pNewBuffer = AllocateSocketBuffer(DATA_BUF_SIZE);
 			if (pNewBuffer)
@@ -1531,15 +1529,7 @@ bool CIocpClient::BeginConnect(const char* lpSzIp, UINT nPort)
 	remoteAddr.sin_port = ::htons(nPort);
 
 	/*连接服务器*/
-#if !USER_IOCP
-	int nRet = ::connect(hSocket, (struct sockaddr*)(&remoteAddr), sizeof(remoteAddr));
-	if (SOCKET_ERROR == nRet)
-	{
-		SAFE_RELEASE_SOCKET(hSocket);
-		myLogConsoleW("%s 连接服务器失败", __FUNCTION__);
-		return false;
-	}
-#else
+#if USE_IOCP
 	SOCKADDR_IN localAddr;
 	localAddr.sin_family = AF_INET;
 	localAddr.sin_addr.S_un.S_addr = htonl(INADDR_ANY);
@@ -1547,11 +1537,10 @@ bool CIocpClient::BeginConnect(const char* lpSzIp, UINT nPort)
 	::bind(hSocket, (LPSOCKADDR)& localAddr, sizeof(localAddr));
 #if 0
 	m_lpfnConnectEx = (LPFN_CONNECTEX)_GetExtendFunc(m_pListenContext->m_hSocket, WSAID_CONNECTEX);
-	//m_lpfnDisconnectEx = (LPFN_DISCONNECTEX)_GetExtendFunc(m_pListenContext->m_hSocket, WSAID_DISCONNECTEX);
 #else
 	DWORD bytes = 0;
 	GUID guid = WSAID_CONNECTEX;
-	::WSAIoctl(hSocket, SIO_GET_EXTENSION_FUNCTION_POINTER, (LPVOID)&guid, sizeof(guid), &m_lpfnConnectEx, sizeof(m_lpfnConnectEx), &bytes, NULL, NULL);
+	::WSAIoctl(hSocket, SIO_GET_EXTENSION_FUNCTION_POINTER, (LPVOID)& guid, sizeof(guid), &m_lpfnConnectEx, sizeof(m_lpfnConnectEx), &bytes, NULL, NULL);
 #endif
 	if (m_lpfnConnectEx)
 	{
@@ -1570,6 +1559,14 @@ bool CIocpClient::BeginConnect(const char* lpSzIp, UINT nPort)
 			}
 		}
 	}
+#else
+	int nRet = ::connect(hSocket, (struct sockaddr*)(&remoteAddr), sizeof(remoteAddr));
+	if (SOCKET_ERROR == nRet)
+	{
+		SAFE_RELEASE_SOCKET(hSocket);
+		myLogConsoleW("%s 连接服务器失败", __FUNCTION__);
+		return false;
+	}
 #endif
 
 	/*保存当前连接上下文*/
@@ -1585,7 +1582,7 @@ bool CIocpClient::BeginConnect(const char* lpSzIp, UINT nPort)
 		return false;
 	}
 
-#if USER_IOCP
+#if USE_IOCP
 	/*完成端口与socket绑定*/
 	::CreateIoCompletionPort((HANDLE)hSocket, m_hCompletionPort, (ULONG_PTR)pContext, 0);
 
@@ -1609,6 +1606,20 @@ bool CIocpClient::BeginConnect(const char* lpSzIp, UINT nPort)
 
 void CIocpClient::Destroy()
 {
+#if USE_IOCP
+#if 0
+	m_lpfnDisconnectEx = (LPFN_DISCONNECTEX)_GetExtendFunc(m_pListenContext->m_hSocket, WSAID_DISCONNECTEX);
+#else
+	DWORD bytes = 0;
+	GUID guid = WSAID_DISCONNECTEX;
+	::WSAIoctl(GetSocket(), SIO_GET_EXTENSION_FUNCTION_POINTER, (LPVOID)&guid, sizeof(guid), &m_lpfnDisconnectEx, sizeof(m_lpfnDisconnectEx), &bytes, NULL, NULL);
+#endif
+	if (m_lpfnDisconnectEx)
+	{
+
+	}
+#else
+#endif
 	Shutdown();
 }
 

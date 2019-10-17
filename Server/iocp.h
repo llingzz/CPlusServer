@@ -1,5 +1,5 @@
 #pragma once
-#define USER_IOCP 1
+#define USE_IOCP 1
 
 typedef enum IoType {
 	enIoInit,

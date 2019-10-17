@@ -27,7 +27,7 @@
     <ClInclude Include="Client.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Utilities.h">
+    <ClInclude Include="..\Server\iocp.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
@@ -36,6 +36,9 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="Client.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Server\iocp.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

@@ -22,14 +22,6 @@ typedef struct _stuWORKER_THREAD_PARAM
 	char szBuffer[MAX_DATA_BUF_SIZE];
 }WORKER_THREAD_PARAM, *LPWORKER_THREAD_PARAM;
 
-typedef struct _tagPACKET_HEAD {
-	UINT uiPacketNo;
-	UINT uiMsgType;
-	UINT uiPacketLen;
-	BOOL bUseCRC32;
-	DWORD dwCRC32;
-}PACKET_HEAD, *LPPACKET_HEAD;
-
 class CClient
 {
 public:
