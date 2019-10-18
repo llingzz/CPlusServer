@@ -299,9 +299,6 @@ protected:
 	static unsigned __stdcall AcceptThreadFunc(LPVOID lpParam);
 	static unsigned __stdcall WorkerThreadFunc(LPVOID lpParam);
 
-protected:
-	void* _GetExtendFunc(const SOCKET& socket, const GUID& guid);
-
 public:
 	/*空闲I/O操作结构列表*/
 	CCritSec m_csSocketBufferList;

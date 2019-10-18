@@ -7,6 +7,20 @@
 
 #include "tools/cpp/protocol.pb.h"
 
+#define  USE_MYSQL_API 1
+#if !USE_MYSQL_API
+#include <mysql_connection.h>
+#include <mysql_driver.h>
+#include <mysql_error.h>
+#include <cppconn/driver.h>
+#include <cppconn/exception.h>
+#include <cppconn/resultset.h>
+#include <cppconn/statement.h>
+#include <cppconn/prepared_statement.h>
+#else
+#include "mysql.h"
+#endif
+
 void TestTimer(void* pParam)
 {
 	std::cout << "Hello World!" << std::endl;
@@ -45,7 +59,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	}
 	getchar();
 	IocpClient.Destroy();
-#elif 1	// 测试protobuf
+#elif 0	// 测试protobuf
 	test_protobuf::inner_test innerTest = {};
 	innerTest.set_ninnertest(0);
 	innerTest.set_strinnertest("InnerTest");
@@ -67,6 +81,100 @@ int _tmain(int argc, _TCHAR* argv[])
 	test_protobuf::test out = {};
 	out.ParseFromArray(test, Test.ByteSize());
 	free(test);
+	getchar();
+#elif !USE_MYSQL_API // 测试连接mysql数据库
+	sql::mysql::MySQL_Driver* driver = NULL;
+	sql::Connection* con = NULL;
+	driver = sql::mysql::get_mysql_driver_instance();
+	if (driver == NULL)
+	{
+		myLogConsoleE("driver is null");
+	}
+	con = driver->connect("tcp://localhost:3306", "root", "root");
+	if (con == NULL)
+	{
+		myLogConsoleE("conn is null");
+	}
+	myLogConsoleI("connect success");
+
+	sql::Statement* stmt = NULL;
+	stmt = con->createStatement();
+	if (stmt == NULL)
+	{
+		myLogConsoleE("stmt is null");
+	}
+	stmt->execute("SET CHARSET GB2312");
+	stmt->execute("USE mydb");
+	sql::ResultSet* resultSet = stmt->executeQuery("select * from user");
+	while (resultSet->next())
+	{
+		myLogConsoleE("label = %s", resultSet->getString("usercol").c_str());
+	}
+	con->close();
+	delete stmt;
+	delete con;
+
+	getchar();
+#elif USE_MYSQL_API // 测试mysql_api方式连接数据库
+	MYSQL mydata;
+	if (0 != mysql_library_init(0, NULL, NULL))
+	{
+		myLogConsoleE("mysql_library_init() failed");
+		getchar();
+		return 0;
+	}
+	if (NULL == mysql_init(&mydata))
+	{
+		myLogConsoleE("mysql_init() failed");
+		getchar();
+		return 0;
+	}
+	if (0 != mysql_options(&mydata, MYSQL_SET_CHARSET_NAME, "gbk"))
+	{
+		myLogConsoleE("mysql_options() failed");
+		getchar();
+		return 0;
+	}
+	if (NULL == mysql_real_connect(&mydata, "localhost", "root", "root", "mydb", 3306, NULL, 0))
+	{
+		myLogConsoleE("mysql_real_connect failed %s", mysql_error(&mydata));
+		getchar();
+		return 0;
+	}
+
+	std::string sqlstr = "SELECT * FROM user";
+	MYSQL_RES* result = NULL;
+	if (0 == mysql_query(&mydata, sqlstr.c_str()))
+	{
+		result = mysql_store_result(&mydata);
+		int rowcount = mysql_num_rows(result);
+		unsigned int fieldcount = mysql_num_fields(result);
+
+		MYSQL_FIELD* field = NULL;
+		for (unsigned int i = 0; i < fieldcount; i++)
+		{
+			field = mysql_fetch_field_direct(result, i);
+			myLogConsoleI("%s\t", field->name);
+		}
+
+		MYSQL_ROW row = NULL;
+		row = mysql_fetch_row(result);
+		while (NULL != row)
+		{
+			row = mysql_fetch_row(result);
+		}
+	}
+	else
+	{
+		myLogConsoleE("mysql_query() select data failed");
+		mysql_close(&mydata);
+		getchar();
+		return 0;
+	}
+	mysql_free_result(result);
+	mysql_close(&mydata);
+	mysql_server_end();
+
 	getchar();
 #elif 0	//测试内存池
 	char test1[] = "test1";

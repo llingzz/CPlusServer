@@ -260,11 +260,20 @@ bool CIocpServer::BeginBindListen(const char* lpSzIp, UINT nPort, UINT nInitAcce
 		return false;
 	}
 
-	m_pListenContext->m_lpfnAcceptEx = (LPFN_ACCEPTEX)_GetExtendFunc(m_pListenContext->m_hSocket, WSAID_ACCEPTEX);
-	m_pListenContext->m_lpfnGetAcceptExSockaddrs = (LPFN_GETACCEPTEXSOCKADDRS)_GetExtendFunc(m_pListenContext->m_hSocket, WSAID_GETACCEPTEXSOCKADDRS);
-	if (!m_pListenContext->m_lpfnAcceptEx || !m_pListenContext->m_lpfnGetAcceptExSockaddrs)
+	DWORD bytes = 0;
+	GUID guid = WSAID_ACCEPTEX;
+	::WSAIoctl(m_pListenContext->m_hSocket, SIO_GET_EXTENSION_FUNCTION_POINTER, (LPVOID)& guid, sizeof(guid), &(m_pListenContext->m_lpfnAcceptEx), sizeof(m_pListenContext->m_lpfnAcceptEx), &bytes, NULL, NULL);
+	if (!m_pListenContext->m_lpfnAcceptEx)
 	{
-		myLogConsoleE("%s m_lpfnAcceptEx/m_lpfnGetAcceptExSockaddrsΪnullptr!!!", __FUNCTION__, m_pListenContext->m_hSocket);
+		myLogConsoleE("%s m_lpfnAcceptExΪnullptr!!!", __FUNCTION__, m_pListenContext->m_hSocket);
+		return false;
+	}
+	guid = WSAID_GETACCEPTEXSOCKADDRS;
+	::WSAIoctl(m_pListenContext->m_hSocket, SIO_GET_EXTENSION_FUNCTION_POINTER, (LPVOID)& guid, sizeof(guid), &(m_pListenContext->m_lpfnGetAcceptExSockaddrs), sizeof(m_pListenContext->m_lpfnGetAcceptExSockaddrs), &bytes, NULL, NULL);
+	if (!m_pListenContext->m_lpfnGetAcceptExSockaddrs)
+	{
+		myLogConsoleE("%s m_lpfnGetAcceptExSockaddrsΪnullptr!!!", __FUNCTION__, m_pListenContext->m_hSocket);
+		return false;
 	}
 
 	SOCKADDR_IN sock_in;
@@ -1448,14 +1457,6 @@ unsigned __stdcall CIocpServer::WorkerThreadFunc(LPVOID lpParam)
 	return THREAD_EXIT;
 }
 
-void* CIocpServer::_GetExtendFunc(const SOCKET& socket, const GUID& guid)
-{
-	void* ptr = nullptr;
-	DWORD bytes = 0;
-	::WSAIoctl(socket, SIO_GET_EXTENSION_FUNCTION_POINTER, (LPVOID)&guid, sizeof(guid), &ptr, sizeof(ptr), &bytes, NULL, NULL);
-	return ptr;
-}
-
 /*CIocpClient*/
 CIocpClient::CIocpClient()
 {
@@ -1535,13 +1536,10 @@ bool CIocpClient::BeginConnect(const char* lpSzIp, UINT nPort)
 	localAddr.sin_addr.S_un.S_addr = htonl(INADDR_ANY);
 	localAddr.sin_port = htons(0);
 	::bind(hSocket, (LPSOCKADDR)& localAddr, sizeof(localAddr));
-#if 0
-	m_lpfnConnectEx = (LPFN_CONNECTEX)_GetExtendFunc(m_pListenContext->m_hSocket, WSAID_CONNECTEX);
-#else
+
 	DWORD bytes = 0;
 	GUID guid = WSAID_CONNECTEX;
 	::WSAIoctl(hSocket, SIO_GET_EXTENSION_FUNCTION_POINTER, (LPVOID)& guid, sizeof(guid), &m_lpfnConnectEx, sizeof(m_lpfnConnectEx), &bytes, NULL, NULL);
-#endif
 	if (m_lpfnConnectEx)
 	{
 		DWORD dwSends = 0;
@@ -1606,20 +1604,6 @@ bool CIocpClient::BeginConnect(const char* lpSzIp, UINT nPort)
 
 void CIocpClient::Destroy()
 {
-#if USE_IOCP
-#if 0
-	m_lpfnDisconnectEx = (LPFN_DISCONNECTEX)_GetExtendFunc(m_pListenContext->m_hSocket, WSAID_DISCONNECTEX);
-#else
-	DWORD bytes = 0;
-	GUID guid = WSAID_DISCONNECTEX;
-	::WSAIoctl(GetSocket(), SIO_GET_EXTENSION_FUNCTION_POINTER, (LPVOID)&guid, sizeof(guid), &m_lpfnDisconnectEx, sizeof(m_lpfnDisconnectEx), &bytes, NULL, NULL);
-#endif
-	if (m_lpfnDisconnectEx)
-	{
-
-	}
-#else
-#endif
 	Shutdown();
 }
 
