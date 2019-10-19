@@ -28,6 +28,7 @@ using namespace std;
 // TODO:  在此处引用程序需要的其他头文件
 #include "../Server/common/CommonDef.h"
 #include "../Server/common/CommonReq.h"
+#include "../Server/tools/cpp/protocol.pb.h"
 #include "../Server/include/func.h"
 #include "../Server/include/utils.h"
 #include "../Server/include/atomic_ops.h"

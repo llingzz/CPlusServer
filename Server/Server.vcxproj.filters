@@ -60,6 +60,9 @@
     <ClInclude Include="iocp.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="db\mysql\db_mysql.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -90,6 +93,9 @@
       <Filter>源文件\protobuf</Filter>
     </ClCompile>
     <ClCompile Include="iocp.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="db\mysql\db_mysql.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

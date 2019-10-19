@@ -4,12 +4,16 @@
 //
 
 #pragma once
+#define  CHECK_LEAKS 0
 
+#if CHECK_LEAKS
 #define _CRTDBG_MAP_ALLOC
 #include <stdlib.h>
 #include <crtdbg.h>
 #define new new(_CLIENT_BLOCK, __FILE__, __LINE__)
 #define _CRT_SECURE_NO_WARNINGS
+#else
+#endif
 
 #if _DEBUG
 #pragma comment(lib,"libprotobufd.lib")
@@ -38,6 +42,7 @@ using namespace std;
 // TODO:  在此处引用程序需要的其他头文件
 #include "common/CommonDef.h"
 #include "common/CommonReq.h"
+#include "tools/cpp/protocol.pb.h"
 #include "include/func.h"
 #include "include/utils.h"
 #include "include/json/json.h"
@@ -52,6 +57,7 @@ using namespace std;
 #include "timer/timer.h"
 #include "db/DBCommon.h"
 #include "db/DBOperator.h"
+#include "db/mysql/db_mysql.h"
 #include "redis/RedisManager.h"
 #include "redis/RedisOperator.h"
 #include "CBaseServer.h"

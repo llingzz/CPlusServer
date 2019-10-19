@@ -41,9 +41,9 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(SolutionDir);$(SolutionDir)/redis/redis;$(SolutionDir)/Server/include/json;$(SolutionDir)/Server/include/librabbitmq;$(SolutionDir)/Server/include</IncludePath>
-    <ReferencePath>$(ReferencePath)</ReferencePath>
-    <LibraryPath>$(SolutionDir)/Server/lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
+    <ReferencePath>$(ReferencePath);</ReferencePath>
+    <LibraryPath>$(LibraryPath);</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
@@ -54,14 +54,14 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(ProjectDir);E:\MyServer\CPlusServer\CPlusServer\Server\include\mysql;E:\Libraryvc12\boost_1_62_0;E:\MyServer\CPlusServer\CPlusServer\Server\include\mysql_api</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(SolutionDir);$(SolutionDir)/redis/redis;$(SolutionDir)/Server/include;$(SolutionDir)/Server/include/mysql;$(SolutionDir)/Server/include/mysql_api;$(SolutionDir)/Server/include/google;$(SolutionDir)/Server/include/json;$(SolutionDir)/Server/include/librabbitmq;E:\Libraryvc12\boost_1_62_0</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>json_vc71_libmtd.lib;librabbitmqd.lib;libprotobufd.lib;libprotocd.lib;mysqlcppconn.lib;libmysql.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)/Server/lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -84,6 +84,7 @@
     <Text Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="db\mysql\db_mysql.h" />
     <ClInclude Include="iocp.h" />
     <ClInclude Include="redis\redis\async.h">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</ExcludedFromBuild>
@@ -111,6 +112,7 @@
     <ClInclude Include="tools\Cpp\protocol.pb.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="db\mysql\db_mysql.cpp" />
     <ClCompile Include="iocp.cpp" />
     <ClCompile Include="redis\redis\async.c">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</ExcludedFromBuild>

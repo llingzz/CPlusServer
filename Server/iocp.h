@@ -16,16 +16,16 @@ typedef enum MsgType {
 	enAcknowledge,
 };
 
-class WORKER_OV
+class CWorkerOv
 {
 public:
 	OVERLAPPED	m_ol;
 	void*		m_p1;
 	void*		m_p2;
 
-	WORKER_OV(void* p1 = NULL, void* p2 = NULL)
+	CWorkerOv(void* p1 = NULL, void* p2 = NULL)
 	{
-		memset(this, 0, sizeof(WORKER_OV));
+		memset(this, 0, sizeof(CWorkerOv));
 		m_p1 = p1;
 		m_p2 = p2;
 	}
@@ -41,10 +41,10 @@ public:
 
 	virtual BOOL DoWorkLoop();
 	virtual bool PutRequestToQueue(DWORD dwSize, DWORD dwKey, void* pParam1, void* pParam2);
-	virtual bool PutDataToQueue(DWORD dwSize, DWORD dwKey, WORKER_OV* pWorkerOv);
+	virtual bool PutDataToQueue(DWORD dwSize, DWORD dwKey, CWorkerOv* pWorkerOv);
 	virtual bool OnRequest(void* pParam1, void* pParam2);
 
-	virtual WORKER_OV* AllocateWorkerOv(void* pParam1, void* pParam2);
+	virtual CWorkerOv* AllocateWorkerOv(void* pParam1, void* pParam2);
 
 	virtual UINT GetWorkerCount();
 
@@ -57,8 +57,8 @@ public:
 	CCritSec m_csWorkers;
 	std::map<UINT, HANDLE> m_mapWorkers;
 
-	ArrayLockFreeQueue<WORKER_OV*> m_queueWorkerOv;
-	ArrayLockFreeQueue<WORKER_OV*> m_queueFreeWorkerOv;
+	ArrayLockFreeQueue<CWorkerOv*> m_queueWorkerOv;
+	ArrayLockFreeQueue<CWorkerOv*> m_queueFreeWorkerOv;
 
 	UINT m_nWorkerOvCount;
 	UINT m_nFreeWorkerOvCount;
@@ -265,6 +265,7 @@ public:
 	virtual bool OnHandleData(LPPACKET_HEAD lpPacketHead, DWORD dwKey, DWORD dwTrans);
 
 	virtual bool SendData(SOCKET hSocket, void* pDataPtr, int nDataLen, UINT uiMsgType);
+	virtual bool SendPbData(SOCKET hSocket, const google::protobuf::Message& pbData, UINT uiMsgType);
 
 	virtual void ComposePacket(CBuffer& dstBuf, UINT nMsgType, LPVOID pData, UINT nPacketSize);
 	virtual void DecomposePacket(CBuffer& srcBuf, CBuffer& dstBuf, int nPacketSize);

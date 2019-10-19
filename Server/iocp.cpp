@@ -40,13 +40,13 @@ BOOL CIocpWorker::DoWorkLoop()
 {
 	while (TRUE)
 	{
-		WORKER_OV* pWorkerOv = nullptr;
+		CWorkerOv* pWorkerOv = nullptr;
 		while (m_queueWorkerOv.pop(pWorkerOv) && pWorkerOv)
 		{
 			OnRequest(pWorkerOv->m_p1, pWorkerOv->m_p2);
 			m_queueFreeWorkerOv.push(pWorkerOv);
 		}
-		WORKER_OV* pFreeWorkerOv = nullptr;
+		CWorkerOv* pFreeWorkerOv = nullptr;
 		while (m_queueFreeWorkerOv.pop(pFreeWorkerOv) && pFreeWorkerOv)
 		{
 			SAFE_DELETE(pFreeWorkerOv->m_p1);
@@ -60,11 +60,11 @@ BOOL CIocpWorker::DoWorkLoop()
 
 bool CIocpWorker::PutRequestToQueue(DWORD dwSize, DWORD dwKey, void* pParam1, void* pParam2)
 {
-	WORKER_OV* pWorkerOv = AllocateWorkerOv(pParam1, pParam2);
+	CWorkerOv* pWorkerOv = AllocateWorkerOv(pParam1, pParam2);
 	return PutDataToQueue(dwSize, dwKey, pWorkerOv);
 }
 
-bool CIocpWorker::PutDataToQueue(DWORD dwSize, DWORD dwKey, WORKER_OV* pWorkerOv)
+bool CIocpWorker::PutDataToQueue(DWORD dwSize, DWORD dwKey, CWorkerOv* pWorkerOv)
 {
 	return m_queueWorkerOv.push(pWorkerOv);
 }
@@ -74,9 +74,9 @@ bool CIocpWorker::OnRequest(void* pParam1, void* pParam2)
 	return true;
 }
 
-WORKER_OV* CIocpWorker::AllocateWorkerOv(void* pParam1, void* pParam2)
+CWorkerOv* CIocpWorker::AllocateWorkerOv(void* pParam1, void* pParam2)
 {
-	return new WORKER_OV(pParam1, pParam2);
+	return new CWorkerOv(pParam1, pParam2);
 }
 
 UINT CIocpWorker::GetWorkerCount()
@@ -87,14 +87,14 @@ UINT CIocpWorker::GetWorkerCount()
 
 void CIocpWorker::ClearWorkerOvLists()
 {
-	WORKER_OV* pWorkerOv = nullptr;
+	CWorkerOv* pWorkerOv = nullptr;
 	while (m_queueWorkerOv.pop(pWorkerOv) && pWorkerOv)
 	{
 		SAFE_DELETE(pWorkerOv->m_p1);
 		SAFE_DELETE(pWorkerOv->m_p2);
 		SAFE_DELETE(pWorkerOv);
 	}
-	WORKER_OV* pFreeWorkerOv = nullptr;
+	CWorkerOv* pFreeWorkerOv = nullptr;
 	while (m_queueFreeWorkerOv.pop(pFreeWorkerOv) && pFreeWorkerOv)
 	{
 		SAFE_DELETE(pFreeWorkerOv->m_p1);
@@ -592,6 +592,19 @@ bool CIocpServer::SendData(SOCKET hSocket, void* pDataPtr, int nDataLen, UINT ui
 	return false;
 }
 
+bool CIocpServer::SendPbData(SOCKET hSocket, const google::protobuf::Message& pbData, UINT uiMsgType)
+{
+	if (pbData.ByteSize() >= DATA_BUF_SIZE)
+	{
+		myLogConsoleW("%s 发生的pb数据过多", __FUNCTION__);
+		return false;
+	}
+
+	char szBuff[DATA_BUF_SIZE] = { 0 };
+	pbData.SerializeToArray(szBuff, pbData.GetCachedSize());
+	return SendData(hSocket, szBuff, pbData.GetCachedSize(), uiMsgType);
+}
+
 void CIocpServer::ComposePacket(CBuffer& dstBuf, UINT nMsgType, LPVOID pData, UINT nPacketSize)
 {
 	PACKET_HEAD stuHead = { 0 };
@@ -621,10 +634,6 @@ void CIocpServer::HandleIo(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwTrans, D
 				myLogConsoleW("%s 套接字%d发生错误", __FUNCTION__, pBuffer->m_hSocket);
 				RemoveConnectionContext(pContext);
 				CloseConnectionContext(pContext);
-				if (0 == pContext->m_nPostedRecv && 0 == pContext->m_nPostedSend)
-				{
-					ReleaseSocketContext(pContext);
-				}
 			}
 			else
 			{
@@ -634,6 +643,7 @@ void CIocpServer::HandleIo(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwTrans, D
 					SAFE_RELEASE_SOCKET(pBuffer->m_hSocket);
 				}
 			}
+			ReleaseSocketBuffer(pBuffer);
 		}
 		else
 		{
@@ -642,6 +652,10 @@ void CIocpServer::HandleIo(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwTrans, D
 			{
 				RemovePendingAccepts(pBuffer);
 				HandleIoAccept(dwKey, pBuffer, dwTrans, dwError);
+			}
+			else
+			{
+				ReleaseSocketBuffer(pBuffer);
 			}
 		}
 		return;
@@ -665,15 +679,9 @@ void CIocpServer::HandleIo(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwTrans, D
 	if (bClose)
 	{
 		myLogConsoleW("%s 套接字%d已经被关闭", __FUNCTION__, pContext->m_hSocket);
-		if (0 == nPostedRecv && 0 == nPostedSend)
-		{
-			ReleaseSocketContext(pContext);
-			ReleaseSocketBuffer(pBuffer);
-		}
-		else
-		{
-			ReleaseSocketBuffer(pBuffer);
-		}
+		RemoveConnectionContext(pContext);
+		CloseConnectionContext(pContext);
+		ReleaseSocketBuffer(pBuffer);
 		return;
 	}
 
@@ -755,6 +763,8 @@ void CIocpServer::HandleIoAccept(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwTr
 			::CreateIoCompletionPort((HANDLE)pContext->m_hSocket, m_hCompletionPort, (DWORD)pContext, 0);
 			myLogConsoleI("%s:新套接字%d连接建立", __FUNCTION__, pContext->m_hSocket);
 
+			//SendData(pContext->m_hSocket, "hello world", 12, 1);
+
 			/*为新连接投递一个Read请求*/
 			CSocketBuffer* pNewBuffer = AllocateSocketBuffer(DATA_BUF_SIZE);
 			if (pNewBuffer)
@@ -814,16 +824,15 @@ void CIocpServer::HandleIoRead(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwTran
 		{
 			pBuffer->m_nBufferLen = dwTrans;
 			CSocketBuffer* pHandleBuffer = GetRecvSocketBuffer(pContext, pBuffer);
-			while (pHandleBuffer)
+			if (pHandleBuffer)
 			{
 				myLogConsoleI("%s:读", __FUNCTION__);
+
 				/*移动读标记为到下一个CSocketBuffer， 释放完成的CSocketBuffer*/
 				::InterlockedIncrement(&pContext->m_nCurrentReadSerialNo);
-
 				OnReceiveData(dwKey, pBuffer, dwTrans);
 
 				ReleaseSocketBuffer(pHandleBuffer);
-				pHandleBuffer = GetRecvSocketBuffer(pContext, NULL);
 			}
 
 			/*投递一个新的Read消息， 投递失败关闭连接*/
@@ -861,28 +870,6 @@ void CIocpServer::HandleIoWrite(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwTra
 		}
 		else
 		{
-#if 1
-			CSocketBuffer* pNewSendBuf = AllocateSocketBuffer(DATA_BUF_SIZE);
-			CSocketBuffer* pSendBuffer = GetSendSocketBuffer(pContext, pBuffer);
-			while (pSendBuffer && pNewSendBuf->m_nBufferLen < DATA_BUF_SIZE)
-			{
-				memcpy(pNewSendBuf->m_pBuffer + pNewSendBuf->m_nBufferLen, pSendBuffer->m_pBuffer, pSendBuffer->m_nBufferLen);
-				pNewSendBuf->m_nBufferLen += pSendBuffer->m_nBufferLen;
-
-				pBuffer = pSendBuffer;
-				pSendBuffer = GetSendSocketBuffer(pContext, pBuffer);
-				ReleaseSocketBuffer(pBuffer);
-			}
-			myLogConsoleI("%s 写", __FUNCTION__);
-
-			int nPostedSend = ::InterlockedExchangeAdd(&pContext->m_nPostedSend, 0);
-			if (nPostedSend > 0 && !PostSend(pContext, pNewSendBuf, dwError))
-			{
-				RemoveConnectionContext(pContext);
-				CloseConnectionContext(pContext);
-			}
-			ReleaseSocketBuffer(pNewSendBuf);
-#else
 			CSocketBuffer* pSendBuffer = GetSendSocketBuffer(pContext, pBuffer);
 			if (pSendBuffer)
 			{
@@ -897,7 +884,7 @@ void CIocpServer::HandleIoWrite(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwTra
 					/*投递一个新的Send消息， 投递失败关闭连接*/
 					CSocketBuffer* pNewBuffer = AllocateSocketBuffer(DATA_BUF_SIZE);
 					DWORD dwError = 0;
-					if (!pNewBuffer || !/*PostRecv*/PostSend(pContext, pNewBuffer, dwError))
+					if (!pNewBuffer || !PostSend(pContext, pNewBuffer, dwError))
 					{
 						RemoveConnectionContext(pContext);
 						CloseConnectionContext(pContext);
@@ -905,7 +892,6 @@ void CIocpServer::HandleIoWrite(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwTra
 					}
 				}
 			}
-#endif
 		}
 	}
 	else

@@ -5,10 +5,7 @@
 #include <winhttp.h>
 #pragma comment(lib, "Winhttp.lib")
 
-#include "tools/cpp/protocol.pb.h"
-
-#define  USE_MYSQL_API 1
-#if !USE_MYSQL_API
+#if 0
 #include <mysql_connection.h>
 #include <mysql_driver.h>
 #include <mysql_error.h>
@@ -17,8 +14,9 @@
 #include <cppconn/resultset.h>
 #include <cppconn/statement.h>
 #include <cppconn/prepared_statement.h>
+#elif 0
+#include "include/mysql_api/mysql.h"
 #else
-#include "mysql.h"
 #endif
 
 void TestTimer(void* pParam)
@@ -42,7 +40,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	worker.BeginWorkerPool(4);
 	getchar();
 	worker.EndWorkerPool();
-#elif 1
+#elif 0
 	CIocpServer IocpServer = CIocpServer();
 	if (!IocpServer.Initialize("127.0.0.1", 8888, 10, 20, 10, 10, 10, 10, 0, 10))
 	{
@@ -82,7 +80,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	out.ParseFromArray(test, Test.ByteSize());
 	free(test);
 	getchar();
-#elif !USE_MYSQL_API // 测试连接mysql数据库
+#elif 0 // 测试连接mysql数据库
 	sql::mysql::MySQL_Driver* driver = NULL;
 	sql::Connection* con = NULL;
 	driver = sql::mysql::get_mysql_driver_instance();
@@ -115,7 +113,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	delete con;
 
 	getchar();
-#elif USE_MYSQL_API // 测试mysql_api方式连接数据库
+#elif 0 // 测试mysql_api方式连接数据库
 	MYSQL mydata;
 	if (0 != mysql_library_init(0, NULL, NULL))
 	{
@@ -429,6 +427,9 @@ int _tmain(int argc, _TCHAR* argv[])
 #else
 #endif
 	getchar();
+#if CHECK_LEAKS
 	_CrtDumpMemoryLeaks();
+#else
+#endif
 	return 0;
 }
