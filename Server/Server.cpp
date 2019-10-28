@@ -40,7 +40,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	worker.BeginWorkerPool(4);
 	getchar();
 	worker.EndWorkerPool();
-#elif 0
+#elif 1
 	CIocpServer IocpServer = CIocpServer();
 	if (!IocpServer.Initialize("127.0.0.1", 8888, 10, 20, 10, 10, 10, 10, 0, 10))
 	{

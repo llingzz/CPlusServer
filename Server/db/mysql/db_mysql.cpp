@@ -152,6 +152,7 @@ bool CMysqlRecordSet::InitRecordSet(MYSQL_STMT* pMySqlStmt, MYSQL_RES* pResult)
 			mysql_stmt_close(pMySqlStmt);
 		}
 	}
+	return true;
 }
 
 bool CMysqlRecordSet::ClearRecordSet()
@@ -169,7 +170,6 @@ bool CMysqlRecordSet::ClearRecordSet()
 
 	m_nRowCount = 0;
 	m_nFieldNum = 0;
-
 	return true;
 }
 
@@ -504,7 +504,7 @@ void CMysqlConnection::Query(std::string strSql, CMysqlRecordSet& recordSet)
 	{
 		return;
 	}
-	recordSet.InitRecordSet = mysql_store_result(m_pMySql);
+	recordSet.InitRecordSet(nullptr, mysql_store_result(m_pMySql));
 }
 
 void CMysqlConnection::Close()

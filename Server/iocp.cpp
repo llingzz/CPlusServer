@@ -607,17 +607,12 @@ bool CIocpServer::SendPbData(SOCKET hSocket, const google::protobuf::Message& pb
 
 void CIocpServer::ComposePacket(CBuffer& dstBuf, UINT nMsgType, LPVOID pData, UINT nPacketSize)
 {
-	PACKET_HEAD stuHead = { 0 };
-	stuHead.uiMsgType = nMsgType;
-	stuHead.uiPacketLen = nPacketSize;
-
-	dstBuf.Write((PBYTE)&stuHead, sizeof(PACKET_HEAD));
-	dstBuf.Write((PBYTE)pData, nPacketSize);
+	
 }
 
 void CIocpServer::DecomposePacket(CBuffer& srcBuf, CBuffer& dstBuf, int nPacketSize)
 {
-
+	
 }
 
 void CIocpServer::HandleIo(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwTrans, DWORD dwError)
