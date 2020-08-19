@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+message test01{
+	int32 nInt32 = 1;
+	repeated int32 arrInt32 = 2[packed=true];
+	int64 nInt64 = 3;
+	repeated int64 arrInt64 = 4[packed=true];
+	string strString = 5;
+	repeated string arrStrs = 6;
+	double dDouble = 7;
+	float fFloat = 8;
+	repeated bytes arrBytes = 9;
+	reserved 10 to 15;
+}
