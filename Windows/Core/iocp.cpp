@@ -221,7 +221,7 @@ bool CIocpTcpServer::BeginBindListen(const char* lpSzIp, UINT nPort, UINT nInitA
 	::memset(&sock_in, 0, sizeof(SOCKADDR_IN));
 	sock_in.sin_family = AF_INET;
 	sock_in.sin_port = ::ntohs(m_nPort);
-	sock_in.sin_addr.S_un.S_addr = inet_addr((char*)m_szIp);
+	inet_pton(AF_INET, (PCSTR)m_szIp, &sock_in.sin_addr);
 
 	int nRet = ::bind(m_pSocketContextMgr->GetListenSocket(), (SOCKADDR*)& sock_in, sizeof(sock_in));
 	if (SOCKET_ERROR == nRet)
@@ -339,8 +339,8 @@ bool CIocpTcpServer::PostAccept(CSocketContext* pContext, CSocketBuffer* pBuffer
 	}
 
 	DWORD dwBytes = 0;
-	BYTE acceptEx[64];
-	ZeroMemory(&acceptEx, 64);
+	BYTE acceptEx[1024];
+	ZeroMemory(&acceptEx, 1024);
 	BOOL bRet = pListen->m_lpfnAcceptEx(
 		pListen->m_hSocket,
 		pBuffer->m_hSocket,
@@ -452,7 +452,7 @@ bool CIocpTcpServer::ConnectOneServer(const std::string strIp, const int nPort)
 	}
 
 	svrAddr.sin_port = htons(nPort);
-	svrAddr.sin_addr.S_un.S_addr = inet_addr(strIp.c_str());
+	inet_pton(AF_INET, (PCSTR)m_szIp, &svrAddr.sin_addr);
 
 	WSAOVERLAPPED wsaOverlapped;
 	ZeroMemory(&wsaOverlapped, sizeof(wsaOverlapped));

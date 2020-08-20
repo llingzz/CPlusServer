@@ -157,23 +157,23 @@ private:
 		switch (nLevel)
 		{
 		case enDEBUG:
-			strcpy(szLoglevel, "DEBUG");
+			strcpy_s(szLoglevel, "DEBUG");
 			break;
 		case enWARN:
-			strcpy(szLoglevel, "WARNS");
+			strcpy_s(szLoglevel, "WARNS");
 			break;
 		case enTRACE:
-			strcpy(szLoglevel, "TRACE");
+			strcpy_s(szLoglevel, "TRACE");
 			break;
 		case enERROR:
-			strcpy(szLoglevel, "ERROR");
+			strcpy_s(szLoglevel, "ERROR");
 			break;
 		case enFATAL:
-			strcpy(szLoglevel, "FATAL");
+			strcpy_s(szLoglevel, "FATAL");
 			break;
 		case enINFO:
 		default:
-			strcpy(szLoglevel, "INFOS");
+			strcpy_s(szLoglevel, "INFOS");
 			break;
 		}
 		sprintf_s(m_szLogRrefix, "%s[%5d][%s]:", m_szLogRrefix, ::GetCurrentThreadId(), szLoglevel);
@@ -207,22 +207,16 @@ private:
 	char		m_szLogContent[8192];
 	SYSTEMTIME	m_sysTime;
 };
-//日志宏定义
+
+// 日志宏定义
 #if _DEBUG
-//文件日志快捷宏
+// 文件日志快捷宏
 #define		myLogFileI(fmt, ...) CLog::GetInstance()->SetLogLevel(enINFO)->WriteLogFile(fmt, __VA_ARGS__)
 #define		myLogFileD(fmt, ...) CLog::GetInstance()->SetLogLevel(enDEBUG)->WriteLogFile(fmt, __VA_ARGS__)
 #define		myLogFileW(fmt, ...) CLog::GetInstance()->SetLogLevel(enWARN)->WriteLogFile(fmt, __VA_ARGS__)
 #define		myLogFileT(fmt, ...) CLog::GetInstance()->SetLogLevel(enTRACE)->WriteLogFile(fmt, __VA_ARGS__)
 #define		myLogFileE(fmt, ...) CLog::GetInstance()->SetLogLevel(enERROR)->WriteLogFile(fmt, __VA_ARGS__)
 #define		myLogFileF(fmt, ...) CLog::GetInstance()->SetLogLevel(enFATAL)->WriteLogFile(fmt, __VA_ARGS__)
-//控制台日志快捷宏
-#define		myLogConsoleI(fmt, ...) CLog::GetInstance()->SetLogLevel(enINFO)->WriteLogConsole(fmt, __VA_ARGS__)
-#define		myLogConsoleD(fmt, ...) CLog::GetInstance()->SetLogLevel(enDEBUG)->WriteLogConsole(fmt, __VA_ARGS__)
-#define		myLogConsoleW(fmt, ...) CLog::GetInstance()->SetLogLevel(enWARN)->WriteLogConsole(fmt, __VA_ARGS__)
-#define		myLogConsoleT(fmt, ...) CLog::GetInstance()->SetLogLevel(enTRACE)->WriteLogConsole(fmt, __VA_ARGS__)
-#define		myLogConsoleE(fmt, ...) CLog::GetInstance()->SetLogLevel(enERROR)->WriteLogConsole(fmt, __VA_ARGS__)
-#define		myLogConsoleF(fmt, ...) CLog::GetInstance()->SetLogLevel(enFATAL)->WriteLogConsole(fmt, __VA_ARGS__)
 #else
 //文件日志快捷宏
 #define		myLogFileI(fmt, ...) CLog::GetInstance()->SetLogLevel(enINFO)->WriteLogFileEx(fmt, __VA_ARGS__)
@@ -231,11 +225,11 @@ private:
 #define		myLogFileT(fmt, ...) CLog::GetInstance()->SetLogLevel(enTRACE)->WriteLogFileEx(fmt, __VA_ARGS__)
 #define		myLogFileE(fmt, ...) CLog::GetInstance()->SetLogLevel(enERROR)->WriteLogFileEx(fmt, __VA_ARGS__)
 #define		myLogFileF(fmt, ...) CLog::GetInstance()->SetLogLevel(enFATAL)->WriteLogFileEx(fmt, __VA_ARGS__)
-//控制台日志快捷宏
-#define		myLogConsoleI(fmt, ...) //printf(fmt, __VA_ARGS__)
-#define		myLogConsoleD(fmt, ...) //printf(fmt, __VA_ARGS__)
-#define		myLogConsoleW(fmt, ...) //printf(fmt, __VA_ARGS__)
-#define		myLogConsoleT(fmt, ...) //printf(fmt, __VA_ARGS__)
-#define		myLogConsoleE(fmt, ...) //printf(fmt, __VA_ARGS__)
-#define		myLogConsoleF(fmt, ...) //printf(fmt, __VA_ARGS__)
 #endif
+// 控制台打印快捷宏
+#define		myLogConsoleI(fmt, ...) CLog::GetInstance()->SetLogLevel(enINFO)->WriteLogConsole(fmt, __VA_ARGS__)
+#define		myLogConsoleD(fmt, ...) CLog::GetInstance()->SetLogLevel(enDEBUG)->WriteLogConsole(fmt, __VA_ARGS__)
+#define		myLogConsoleW(fmt, ...) CLog::GetInstance()->SetLogLevel(enWARN)->WriteLogConsole(fmt, __VA_ARGS__)
+#define		myLogConsoleT(fmt, ...) CLog::GetInstance()->SetLogLevel(enTRACE)->WriteLogConsole(fmt, __VA_ARGS__)
+#define		myLogConsoleE(fmt, ...) CLog::GetInstance()->SetLogLevel(enERROR)->WriteLogConsole(fmt, __VA_ARGS__)
+#define		myLogConsoleF(fmt, ...) CLog::GetInstance()->SetLogLevel(enFATAL)->WriteLogConsole(fmt, __VA_ARGS__)

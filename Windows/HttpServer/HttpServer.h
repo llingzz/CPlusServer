@@ -175,8 +175,9 @@ private:
 	{
 		char tstr[30];
 		time_t now = time(nullptr);
-		tm* gmt = gmtime(&now);
-		strftime(tstr, sizeof(tstr), "%a, %d %b %Y %H:%M:%S GMT", gmt);
+		tm gmt;
+		gmtime_s(&gmt, &now);
+		strftime(tstr, sizeof(tstr), "%a, %d %b %Y %H:%M:%S GMT", &gmt);
 		std::string strTime = tstr;
 
 		std::string strRes = std::string("HTTP/1.1 ");

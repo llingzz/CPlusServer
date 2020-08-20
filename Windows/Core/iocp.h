@@ -8,6 +8,7 @@
 #include <functional>
 #include <condition_variable>
 #include <process.h>
+#include <ws2tcpip.h>
 #include <winsock2.h>
 #pragma comment(lib,"ws2_32.lib")
 #include <MSWSock.h>
@@ -382,7 +383,7 @@ public:
 		m_pNext = nullptr;
 		m_nRepostCount = 0;
 	}
-	virtual ~CSocketListenContext()
+	~CSocketListenContext()
 	{
 		m_lpfnAcceptEx = nullptr;
 		m_lpfnGetAcceptExSockaddrs = nullptr;

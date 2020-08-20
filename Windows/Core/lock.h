@@ -31,8 +31,22 @@ private:
 };
 
 /*临界区锁对象*/
-class CAutoLock {
-	CAutoLock(const CAutoLock& refAutoLock);
+class CAutoLock
+{
+public:
+	CAutoLock(CCritSec* plock)
+	{
+		m_pLock = plock;
+		m_pLock->Lock();
+	};
+	~CAutoLock()
+	{
+		m_pLock->Unlock();
+	};
+	CAutoLock(const CAutoLock& refAutoLock)
+	{
+		m_pLock = refAutoLock.m_pLock;
+	}
 	CAutoLock& operator=(const CAutoLock& refAutoLock)
 	{
 		if (this != &refAutoLock)
@@ -42,17 +56,6 @@ class CAutoLock {
 		return *this;
 	}
 
-protected:
+private:
 	CCritSec* m_pLock;
-
-public:
-	CAutoLock(CCritSec* plock)
-	{
-		m_pLock = plock;
-		m_pLock->Lock();
-	};
-
-	~CAutoLock() {
-		m_pLock->Unlock();
-	};
 };
