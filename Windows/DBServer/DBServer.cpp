@@ -36,7 +36,7 @@ void* CDBServer::OnWorkerStart()
 	int nAffectRows = 0;
 	char szSql[1024] = { 0 };
 	time_t tNow = time(nullptr);
-	sprintf(szSql, "insert into tblUserInfo(u_id, u_name) values(%d,'luoling_%d');", (int)tNow, (int)tNow);
+	sprintf_s(szSql, "insert into tblUserInfo(u_id, u_name) values(%d,'luoling_%d');", (int)tNow, (int)tNow);
 	pContext->m_pConnection->Execute(szSql, nAffectRows);
 	if (nAffectRows <= 0)
 	{
@@ -81,7 +81,7 @@ BOOL CDBServer::DB_TestNormal(CWorkerContext* pContext)
 	try
 	{
 #if 1
-		_stprintf(szSql, _T("insert into tblUserInfo(u_id, u_name) values(2, '2');"));
+		swprintf_s(szSql, _T("insert into tblUserInfo(u_id, u_name) values(2, '2');"));
 		auto res = pConn->Execute(szSql, &RecordsAffected, adCmdText);
 		if (RecordsAffected.lVal > 0)
 		{
@@ -143,7 +143,7 @@ BOOL CDBServer::DB_TestTrans(CWorkerContext* pContext)
 
 	BOOL bResult = TRUE;
 	try {
-		_stprintf(szSql, _T("insert into tblUserInfo(u_id, u_name) values(2, '2');"));
+		swprintf_s(szSql, _T("insert into tblUserInfo(u_id, u_name) values(2, '2');"));
 		auto res = pConn->Execute(szSql, &RecordsAffected, adCmdText);
 		if (RecordsAffected.lVal > 0)
 		{
@@ -156,7 +156,7 @@ BOOL CDBServer::DB_TestTrans(CWorkerContext* pContext)
 	};
 
 	try {
-		_stprintf(szSql, _T("insert into tblUserInfo(u_id, u_name) values(3, '3');"));
+		swprintf_s(szSql, _T("insert into tblUserInfo(u_id, u_name) values(3, '3');"));
 		auto res = pConn->Execute(szSql, &RecordsAffected, adCmdText);
 		if (RecordsAffected.lVal > 0)
 		{
