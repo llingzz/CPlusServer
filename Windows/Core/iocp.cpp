@@ -338,9 +338,10 @@ bool CIocpTcpServer::PostAccept(CSocketContext* pContext, CSocketBuffer* pBuffer
 		return false;
 	}
 
+	// acceptEx长度设定为msdn官方示例中的1024再加上本机和远端SOCKADDR_IN长度，实际调试发现太小会有内存溢出之类的异常
 	DWORD dwBytes = 0;
-	BYTE acceptEx[1024];
-	ZeroMemory(&acceptEx, 1024);
+	BYTE acceptEx[1024 + 2 * (sizeof(SOCKADDR_IN) + 16)];
+	ZeroMemory(&acceptEx, 1024 + 2 * (sizeof(SOCKADDR_IN) + 16));
 	BOOL bRet = pListen->m_lpfnAcceptEx(
 		pListen->m_hSocket,
 		pBuffer->m_hSocket,
@@ -875,7 +876,7 @@ void CIocpTcpServer::AcceptThreadFunc()
 
 	for (UINT i = 0; i < m_nInitAccepts; i++)
 	{
-		pBuffer = m_pSocketBufferMgr->AllocateSocketBuffer(1024);
+		pBuffer = m_pSocketBufferMgr->AllocateSocketBuffer(1);
 		if (!pBuffer)
 		{
 			myLogConsoleW("%s 线程%d退出...", __FUNCTION__, ::GetCurrentThreadId());
@@ -944,7 +945,7 @@ void CIocpTcpServer::AcceptThreadFunc()
 			int nCount = 0;
 			while ((nCount++ < nAddAcceptCounts))
 			{
-				CSocketBuffer* pNewBuffer = m_pSocketBufferMgr->AllocateSocketBuffer(1024);
+				CSocketBuffer* pNewBuffer = m_pSocketBufferMgr->AllocateSocketBuffer(1);
 				if (pNewBuffer)
 				{
 					dwError = 0;

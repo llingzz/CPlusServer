@@ -190,7 +190,7 @@ private:
 		strRes += response.m_strBody;
 
 		SendData(response.m_pContext, strRes.c_str(), strRes.size());
-		CloseClient(response.m_pContext);
+		//CloseClient(response.m_pContext);
 	}
 
 private:
