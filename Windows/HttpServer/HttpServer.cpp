@@ -66,7 +66,7 @@ std::string GetOSName()
 
 void DisableSetUnhandledExceptionFilter()
 {
-	void* addr = (void*)GetProcAddress(LoadLibrary(_T("kernel32.dll")), "SetUnhandledExceptionFilter");
+	void* addr = (void*)::GetProcAddress(LoadLibrary(_T("kernel32.dll")), "SetUnhandledExceptionFilter");
 	if (addr)
 	{
 		unsigned char code[16];
@@ -78,37 +78,39 @@ void DisableSetUnhandledExceptionFilter()
 		code[size++] = 0x00;
 
 		DWORD dwOldFlag, dwTempFlag;
-		VirtualProtect(addr, size, PAGE_READWRITE, &dwOldFlag);
-		WriteProcessMemory(GetCurrentProcess(), addr, code, size, NULL);
-		VirtualProtect(addr, size, dwOldFlag, &dwTempFlag);
+		::VirtualProtect(addr, size, PAGE_READWRITE, &dwOldFlag);
+		::WriteProcessMemory(GetCurrentProcess(), addr, code, size, NULL);
+		::VirtualProtect(addr, size, dwOldFlag, &dwTempFlag);
 	}
 }
 
 void WriteMiniDMP(struct _EXCEPTION_POINTERS* pExp)
 {
-	char m_szFilePath[MAX_PATH];
-	char szDumpFile[MAX_PATH];
+	CHAR szFilePathTp[MAX_PATH];
+	TCHAR wszFilePath[MAX_PATH];
+	GetModuleFileName(GetModuleHandle(NULL), wszFilePath, MAX_PATH - 1);
+	int nLen = WideCharToMultiByte(CP_ACP, 0, (LPCWCH)wszFilePath, -1, NULL, 0, NULL, NULL);
+	WideCharToMultiByte(CP_ACP, 0, (LPCWCH)wszFilePath, -1, szFilePathTp, nLen, NULL, NULL);
+	CHAR* pPtr = strrchr(szFilePathTp, '\\');
 
-	TCHAR szFilePath[MAX_PATH];
-	GetModuleFileName(GetModuleHandle(NULL), szFilePath, MAX_PATH - 1);
-	int nLen = WideCharToMultiByte(CP_ACP, 0, (LPCWCH)szFilePath, -1, NULL, 0, NULL, NULL);
-	WideCharToMultiByte(CP_ACP, 0, (LPCWCH)szFilePath, -1, m_szFilePath, nLen, NULL, NULL);
-	const char* ptr = strrchr(m_szFilePath, '\\');
-
-	string strStr = m_szFilePath;
-	auto nIndex = strStr.find(ptr);
+	CHAR szDumpFile[MAX_PATH];
+	string strStr = szFilePathTp;
+	size_t nIndex = strStr.find(pPtr);
 	string strRes = strStr.substr(0, nIndex);
 	sprintf_s(szDumpFile, "%s\\%lld.dmp", strRes.c_str(), _time64(nullptr));
 
-	HANDLE hFile = CreateFile((LPCWSTR)szDumpFile, GENERIC_WRITE, FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	TCHAR wszDumpFile[MAX_PATH];
+	int wnLen = MultiByteToWideChar(CP_ACP, NULL, szDumpFile, strlen(szDumpFile), NULL, 0);
+	MultiByteToWideChar(CP_ACP, 0, szDumpFile, strlen(szDumpFile) + 1, wszDumpFile, wnLen + 1);
+	HANDLE hFile = ::CreateFile(wszDumpFile, GENERIC_WRITE, FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (hFile != INVALID_HANDLE_VALUE)
 	{
 		MINIDUMP_EXCEPTION_INFORMATION ExInfo;
 		ExInfo.ThreadId = ::GetCurrentThreadId();
 		ExInfo.ExceptionPointers = pExp;
 		ExInfo.ClientPointers = NULL;
-		BOOL bOK = MiniDumpWriteDump(GetCurrentProcess(), GetCurrentProcessId(), hFile, MiniDumpWithFullMemory, &ExInfo, NULL, NULL);
-		CloseHandle(hFile);
+		BOOL bOK = ::MiniDumpWriteDump(::GetCurrentProcess(), ::GetCurrentProcessId(), hFile, MiniDumpWithFullMemory, &ExInfo, NULL, NULL);
+		::CloseHandle(hFile);
 	}
 }
 
