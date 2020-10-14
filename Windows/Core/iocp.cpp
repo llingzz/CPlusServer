@@ -137,7 +137,10 @@ bool CIocpTcpServer::InitializeMembers()
 	{
 		return false;
 	}
-
+	if (!m_pSocketContextMgr->Init(m_pAllocator, m_pSocketBufferMgr))
+	{
+		return false;
+	}
 	return true;
 }
 
@@ -211,12 +214,6 @@ bool CIocpTcpServer::BeginBindListen(const char* lpSzIp, UINT nPort, UINT nInitA
 	lstrcpy(m_szIp, (TCHAR*)lpSzIp);
 	m_nInitAccepts = nInitAccepts;
 
-	bool bRet = m_pSocketContextMgr->Init(m_pAllocator, m_pSocketBufferMgr);
-	if (!bRet)
-	{
-		return false;
-	}
-
 	SOCKADDR_IN sock_in;
 	::memset(&sock_in, 0, sizeof(SOCKADDR_IN));
 	sock_in.sin_family = AF_INET;
@@ -244,20 +241,18 @@ bool CIocpTcpServer::BeginBindListen(const char* lpSzIp, UINT nPort, UINT nInitA
 	::CreateIoCompletionPort((HANDLE)m_pSocketContextMgr->GetListenSocket(), m_hCompletionPort, (DWORD)NULL, 0);
 	::WSAEventSelect(m_pSocketContextMgr->GetListenSocket(), m_pSocketContextMgr->GetAcceptHandle(), FD_ACCEPT);
 
-	m_acceptThread = std::thread([&] {this->AcceptThreadFunc(); });
-
 	return true;
 }
 
-bool CIocpTcpServer::BeginThreadPool(UINT nThreads)
+bool CIocpTcpServer::BeginThreadPool(UINT nThreads/* = 0*/)
 {
 	SYSTEM_INFO siSysInfo;
 	GetSystemInfo(&siSysInfo);
+	m_acceptThread = std::thread([&] {this->AcceptThreadFunc(); });
 	for (DWORD i = 0; i < siSysInfo.dwNumberOfProcessors * 2; i++)
 	{
 		m_socketThread[i] = std::thread([&] {this->SocketThreadFunc(); });
 	}
-
 	for (UINT i = 0; i < nThreads; i++)
 	{
 		CThreadContext* pThreadCtx = new CThreadContext;
@@ -267,7 +262,6 @@ bool CIocpTcpServer::BeginThreadPool(UINT nThreads)
 		_Thrd_id_t* pid = reinterpret_cast<_Thrd_id_t*>(&tid);
 		m_mapWorkerThreadCtx.insert(std::make_pair((DWORD)*pid, pThreadCtx));
 	}
-
 	return true;
 }
 
@@ -292,14 +286,14 @@ bool CIocpTcpServer::InitializeIo()
 
 bool CIocpTcpServer::Initialize(const char* lpSzIp, UINT nPort, UINT nInitAccepts, UINT nMaxAccpets, UINT nThreads, UINT nMaxConnections)
 {
-	if (!InitializeMembers())
-	{
-		myLogConsoleE("%s InitializeMembersÊ§°Ü", __FUNCTION__);
-		return false;
-	}
 	if (!InitializeIo())
 	{
 		myLogConsoleE("%s InitializeIoÊ§°Ü", __FUNCTION__);
+		return false;
+	}
+	if (!InitializeMembers())
+	{
+		myLogConsoleE("%s InitializeMembersÊ§°Ü", __FUNCTION__);
 		return false;
 	}
 	if (!BeginBindListen(lpSzIp, nPort, nInitAccepts, nMaxAccpets))
@@ -410,98 +404,10 @@ bool CIocpTcpServer::PostSend(CSocketContext* pContext, CSocketBuffer* pBuffer, 
 		myLogConsoleW("%s WSASend Ê§°Ü WSAGetLastError:%ld", __FUNCTION__, dwWSAError);
 		return false;
 	}
+#if 0
 	pContext->m_llPendingSends++;
-	return true;
-}
-
-bool CIocpTcpServer::ConnectOneServer(const std::string strIp, const int nPort)
-{
-	SOCKET hSocket = ::WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
-	if (hSocket == INVALID_SOCKET)
-	{
-		return false;
-	}
-
-	CSocketContext* pContext = m_pSocketContextMgr->AllocateSocketContext(hSocket);
-	if (!pContext)
-	{
-		return false;
-	}
-	pContext->m_hSocket = hSocket;
-	::CreateIoCompletionPort((HANDLE)pContext->m_hSocket, m_hCompletionPort, (DWORD)pContext, 0);
-
-	DWORD dwBytes = 0;
-	DWORD dwSendBytes = 0;
-	GUID guid = WSAID_CONNECTEX;
-
-	LPFN_CONNECTEX lpfnConnectEx = nullptr;
-	if (SOCKET_ERROR == WSAIoctl(hSocket, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &lpfnConnectEx, sizeof(lpfnConnectEx), &dwBytes, NULL, NULL))
-	{
-		return false;
-	}
-
-	SOCKADDR_IN svrAddr;
-	memset(&svrAddr, 0, sizeof(SOCKADDR_IN));
-	svrAddr.sin_family = AF_INET;
-	svrAddr.sin_port = htons(0);
-	svrAddr.sin_addr.s_addr = INADDR_ANY;
-
-	int ret = ::bind(pContext->m_hSocket, (SOCKADDR*)&svrAddr, sizeof(svrAddr));
-	if (SOCKET_ERROR == ret)
-	{
-		return false;
-	}
-
-	svrAddr.sin_port = htons(nPort);
-	inet_pton(AF_INET, (PCSTR)m_szIp, &svrAddr.sin_addr);
-
-	WSAOVERLAPPED wsaOverlapped;
-	ZeroMemory(&wsaOverlapped, sizeof(wsaOverlapped));
-	BOOL bRet = lpfnConnectEx(
-		pContext->m_hSocket,
-		(const SOCKADDR*)&svrAddr,
-		sizeof(SOCKADDR_IN),
-		NULL,
-		NULL,
-		&dwSendBytes,
-		&wsaOverlapped);
-	DWORD dwError = ::WSAGetLastError();
-	if (!bRet && dwError != WSA_IO_PENDING)
-	{
-		return false;
-	}
-
-	return true;
-}
-
-bool CIocpTcpServer::DisconnectServer(SOCKET hSocket)
-{
-	DWORD dwBytes = 0;
-	DWORD dwSendBytes = 0;
-	GUID guid = WSAID_DISCONNECTEX;
-
-	LPFN_DISCONNECTEX lpfnDisconnectEx = nullptr;
-	if (SOCKET_ERROR == WSAIoctl(hSocket, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &lpfnDisconnectEx, sizeof(lpfnDisconnectEx), &dwBytes, NULL, NULL))
-	{
-		return false;
-	}
-
-	WSAOVERLAPPED wsaOverlapped;
-	ZeroMemory(&wsaOverlapped, sizeof(wsaOverlapped));
-	DWORD dwFlags = TF_REUSE_SOCKET;
-	BOOL bRet = lpfnDisconnectEx(
-		hSocket,
-		&wsaOverlapped,
-		dwFlags,
-		0);
-	DWORD dwError = ::WSAGetLastError();
-	if (!bRet && dwError != WSA_IO_PENDING)
-	{
-		return false;
-	}
-
-	CSocketContext* pContext = m_pSocketContextMgr->GetCtx(hSocket);
-	m_pSocketContextMgr->ReleaseSocketContext(pContext);
+#else
+#endif
 	return true;
 }
 
@@ -517,7 +423,7 @@ bool CIocpTcpServer::CloseClient(CSocketContext* pContext)
 	return false;
 }
 
-bool CIocpTcpServer::SendData(SOCKET hSocket, const void* pDataPtr, int nDataLen, UINT uiMsgType)
+bool CIocpTcpServer::SendData(SOCKET hSocket, const void* pDataPtr, int nDataLen)
 {
 	CSocketContext* pContext = m_pSocketContextMgr->GetCtx(hSocket);
 	if (pContext)
@@ -529,6 +435,7 @@ bool CIocpTcpServer::SendData(SOCKET hSocket, const void* pDataPtr, int nDataLen
 
 bool CIocpTcpServer::SendData(CSocketContext* pContext, const void* pDataPtr, int nDataLen)
 {
+#if 0
 	CSocketBuffer* pBuffer = m_pSocketBufferMgr->AllocateSocketBuffer(nDataLen);
 	if (pBuffer && pBuffer->m_pBuffer && pBuffer->m_pBuffer->GetDataLen() > 0)
 	{
@@ -536,6 +443,34 @@ bool CIocpTcpServer::SendData(CSocketContext* pContext, const void* pDataPtr, in
 		DWORD dwError = 0;
 		return PostSend(pContext, pBuffer, dwError);
 	}
+#else
+	CSocketBuffer* pBuffer = m_pSocketBufferMgr->AllocateSocketBuffer(nDataLen);
+	memcpy(pBuffer->m_pBuffer->GetBuffer(), pDataPtr, nDataLen);
+	CAutoLock lk(&pContext->m_lock);
+	if (pContext->m_llPendingSends <= 0)
+	{
+		DWORD dwError = 0;
+		pContext->m_llPendingSends++;
+		return PostSend(pContext, pBuffer, dwError);
+	}
+	else
+	{
+		if (!pContext->m_pWaitingSend)
+		{
+			pContext->m_pWaitingSend = pBuffer;
+		}
+		else
+		{
+			CSocketBuffer* pTempBuffer = pContext->m_pWaitingSend;
+			while (pTempBuffer->m_pNext)
+			{
+				pTempBuffer = pTempBuffer->m_pNext;
+			}
+			pTempBuffer->m_pNext = pBuffer;
+		}
+		pContext->m_llPendingSends++;
+	}
+#endif
 	return false;
 }
 
@@ -764,6 +699,37 @@ void CIocpTcpServer::HandleIoWrite(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dw
 		{
 			CAutoLock lock(&pContext->m_lock);
 			pContext->m_llPendingSends--;
+#if 1
+			while (pContext->m_pWaitingSend)
+			{
+				CSocketBuffer* pBuffer = m_pSocketBufferMgr->AllocateSocketBuffer(1024);
+				if (pBuffer)
+				{
+					int nLen = 0;
+					while (pContext->m_pWaitingSend && nLen < 1024)
+					{
+						CSocketBuffer* pTempBuffer = pContext->m_pWaitingSend;
+						int nDataLen = pTempBuffer->m_pBuffer->GetDataLen();
+						if (nDataLen > 1024)
+						{
+							memcpy(pBuffer->m_pBuffer->GetBuffer(), pTempBuffer->m_pBuffer->GetData(), 1024 - 1);
+							memmove(pTempBuffer->m_pBuffer->GetData(), (pTempBuffer->m_pBuffer->GetData() + 1024 - 1), nDataLen - 1024 - 1);
+							pTempBuffer->m_pBuffer->SetDataLen(nDataLen - 1024 - 1);
+							nLen += 1024;
+						}
+						else
+						{
+							memcpy(pBuffer->m_pBuffer->GetBuffer() + nLen, pTempBuffer->m_pBuffer->GetData(), nDataLen);
+							pContext->m_pWaitingSend = pContext->m_pWaitingSend->m_pNext;
+							pContext->m_llPendingSends--;
+							nLen += nDataLen;
+						}
+					}
+					DWORD dwError = 0;
+					PostSend(pContext, pBuffer, dwError);
+				}
+			}
+#endif
 		}
 	}
 	else
@@ -1073,4 +1039,174 @@ void CIocpTcpServer::WorkerThreadFunc()
 	}
 	myLogConsoleW("%s WorkerThreadFuncÏß³Ì%dÍË³ö...", __FUNCTION__, ::GetCurrentThreadId());
 	return;
+}
+
+/*CIocpTcpClient*/
+CIocpTcpClient::CIocpTcpClient():
+	CIocpTcpServer(CPS_FLAG_DEFAULT)
+{
+
+}
+
+CIocpTcpClient::~CIocpTcpClient()
+{
+
+}
+
+bool CIocpTcpClient::Create()
+{
+	if (!InitializeIo()) {
+		return false;
+	}
+	if (!InitializeMembers()) {
+		return false;
+	}
+	if (!BeginThreadPool()) {
+		return false;
+	}
+	return true;
+}
+
+bool CIocpTcpClient::BeginThreadPool(UINT nThreads/* = 0*/)
+{
+	CThreadContext* pThreadCtx = new CThreadContext;
+	pThreadCtx->m_pContext = OnWorkerStart();
+	pThreadCtx->m_thread = std::thread([&] {this->WorkerThreadFunc(); });
+	std::thread::id tid = pThreadCtx->m_thread.get_id();
+	_Thrd_id_t* pid = reinterpret_cast<_Thrd_id_t*>(&tid);
+	m_mapWorkerThreadCtx.insert(std::make_pair((DWORD)*pid, pThreadCtx));
+	m_socketThread[0] = std::thread([&] {this->SocketThreadFunc(); });
+	return true;
+}
+
+bool CIocpTcpClient::ConnectOneServer(const std::string strIp, const int nPort)
+{
+	SOCKET hSocket = ::WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
+	if (hSocket == INVALID_SOCKET)
+	{
+		return false;
+	}
+
+	CSocketContext* pContext = m_pSocketContextMgr->AllocateSocketContext(hSocket);
+	if (!pContext)
+	{
+		return false;
+	}
+	pContext->m_hSocket = hSocket;
+
+	::CreateIoCompletionPort((HANDLE)pContext->m_hSocket, m_hCompletionPort, (DWORD)pContext, 0);
+
+	DWORD dwBytes = 0;
+	DWORD dwSendBytes = 0;
+	GUID guid = WSAID_CONNECTEX;
+	LPFN_CONNECTEX lpfnConnectEx = nullptr;
+	if (SOCKET_ERROR == ::WSAIoctl(hSocket, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &lpfnConnectEx, sizeof(lpfnConnectEx), &dwBytes, NULL, NULL))
+	{
+		return false;
+	}
+
+	SOCKADDR_IN svrAddr;
+	memset(&svrAddr, 0, sizeof(SOCKADDR_IN));
+	svrAddr.sin_family = AF_INET;
+	svrAddr.sin_port = htons(0);
+	svrAddr.sin_addr.s_addr = INADDR_ANY;
+
+	int ret = ::bind(pContext->m_hSocket, (SOCKADDR*)&svrAddr, sizeof(svrAddr));
+	if (SOCKET_ERROR == ret)
+	{
+		return false;
+	}
+
+	svrAddr.sin_port = htons(nPort);
+	inet_pton(AF_INET, (PCSTR)strIp.c_str(), &svrAddr.sin_addr);
+
+	WSAOVERLAPPED wsaOverlapped;
+	ZeroMemory(&wsaOverlapped, sizeof(wsaOverlapped));
+	BOOL bRet = lpfnConnectEx(
+		pContext->m_hSocket,
+		(const SOCKADDR*)&svrAddr,
+		sizeof(SOCKADDR_IN),
+		NULL,
+		NULL,
+		&dwSendBytes,
+		&wsaOverlapped);
+	DWORD dwError = ::WSAGetLastError();
+	if (!bRet && dwError != WSA_IO_PENDING)
+	{
+		return false;
+	}
+
+	CSocketBuffer* pNewBuffer = m_pSocketBufferMgr->AllocateSocketBuffer(1024);
+	if (pNewBuffer)
+	{
+		DWORD dwError = 0;
+		if (!PostRecv(pContext, pNewBuffer, dwError))
+		{
+			m_pSocketContextMgr->ReleaseSocketContext(pContext);
+			m_pSocketBufferMgr->ReleaseSocketBuffer(pNewBuffer);
+			myLogConsoleW("%s Ì×½Ó×Ö%dÍ¶µÝReadÇëÇóÊ§°Ü£¬¶Ï¿ªÁ¬½Ó", __FUNCTION__, pContext->m_hSocket);
+			return false;
+		}
+	}
+	return true;
+}
+
+bool CIocpTcpClient::DisconnectServer(SOCKET hSocket)
+{
+	DWORD dwBytes = 0;
+	DWORD dwSendBytes = 0;
+	GUID guid = WSAID_DISCONNECTEX;
+	LPFN_DISCONNECTEX lpfnDisconnectEx = nullptr;
+	if (SOCKET_ERROR == ::WSAIoctl(hSocket, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &lpfnDisconnectEx, sizeof(lpfnDisconnectEx), &dwBytes, NULL, NULL))
+	{
+		return false;
+	}
+
+	WSAOVERLAPPED wsaOverlapped;
+	ZeroMemory(&wsaOverlapped, sizeof(wsaOverlapped));
+	DWORD dwFlags = TF_REUSE_SOCKET;
+	BOOL bRet = lpfnDisconnectEx(
+		hSocket,
+		&wsaOverlapped,
+		dwFlags,
+		0);
+	DWORD dwError = ::WSAGetLastError();
+	if (!bRet && dwError != WSA_IO_PENDING)
+	{
+		return false;
+	}
+
+	CSocketContext* pContext = m_pSocketContextMgr->GetCtx(hSocket);
+	m_pSocketContextMgr->ReleaseSocketContext(pContext);
+	return true;
+}
+
+bool CIocpTcpClient::BeginConnect(const std::string& strIp, const int& nPort)
+{
+	ConnectOneServer(strIp, nPort);
+	return true;
+}
+
+bool CIocpTcpClient::Destroy()
+{
+	Shutdown();
+	return true;
+}
+
+bool CIocpTcpClient::SendData(const void* pDataPtr, const int& nDataLen)
+{
+	SOCKET hSocket = m_pSocketContextMgr->GetRemoteSocket();
+	if (INVALID_SOCKET == hSocket) {
+		return false;
+	}
+	return __super::SendData(hSocket, pDataPtr, nDataLen);
+}
+
+void CIocpTcpClient::OnRequest(void* p1, void* p2)
+{
+	NetPacket* pNP = (NetPacket*)p1;
+	myLogConsoleI("recv:[%s]", (char*)pNP->GetData());
+
+	//std::string str = "connected success!!!";
+	//SendData(pNP->GetCtx(), str.c_str(), str.size());
 }

@@ -325,6 +325,7 @@ public:
 		m_llCurrSerialNo = 0;
 		m_llNextSerialNo = 0;
 		m_llPendingSends = 0;
+		m_pWaitingSend = nullptr;
 		m_pNext = nullptr;
 		m_pCtxManager = nullptr;
 		m_pBufManager = nullptr;
@@ -344,6 +345,7 @@ public:
 		m_llCurrSerialNo = 0;
 		m_llNextSerialNo = 0;
 		m_llPendingSends = 0;
+		m_pWaitingSend = nullptr;
 		m_pNext = nullptr;
 		m_pCtxManager = nullptr;
 		m_pBufManager = nullptr;
@@ -615,6 +617,17 @@ public:
 	{
 		return m_pListenContext;
 	}
+	SOCKET GetRemoteSocket()
+	{
+		SOCKET hSocket = INVALID_SOCKET;
+		CAutoLock lock(&m_lock);
+		auto first = m_mapConnection.begin();
+		if (first != m_mapConnection.end())
+		{
+			hSocket = first->first;
+		}
+		return hSocket;
+	}
 	SOCKET GetListenSocket()
 	{
 		return m_pListenContext->m_hSocket;
@@ -670,7 +683,7 @@ public:
 
 	virtual bool InitializeMembers();
 	virtual bool BeginBindListen(const char* lpSzIp, UINT nPort, UINT nInitAccepts, UINT nMaxAccpets);
-	virtual bool BeginThreadPool(UINT nThreads);
+	virtual bool BeginThreadPool(UINT nThreads = 0);
 	virtual bool InitializeIo();
 	virtual bool Initialize(const char* lpSzIp, UINT nPort, UINT nInitAccepts, UINT nMaxAccpets, UINT nThreads, UINT nMaxConnections);
 	virtual bool Shutdown();
@@ -680,10 +693,8 @@ public:
 	virtual bool PostRecv(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
 	virtual bool PostSend(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
 
-	virtual bool ConnectOneServer(const std::string strIp, const int nPort);
-	virtual bool DisconnectServer(SOCKET hSocket);
 	virtual bool CloseClient(CSocketContext* pContext);
-	virtual bool SendData(SOCKET hSocket, const void* pDataPtr, int nDataLen, UINT uiMsgType);
+	virtual bool SendData(SOCKET hSocket, const void* pDataPtr, int nDataLen);
 	virtual bool SendData(CSocketContext* pContext, const void* pDataPtr, int nDataLen);
 	virtual bool SendPbData(CSocketContext* pContext, const google::protobuf::Message& pdata);
 
@@ -706,7 +717,7 @@ private:
 	CIocpTcpServer(const CIocpTcpServer&) = delete;
 	CIocpTcpServer& operator=(const CIocpTcpServer&) = delete;
 
-private:
+protected:
 	void AcceptThreadFunc();
 	void SocketThreadFunc();
 	void WorkerThreadFunc();
@@ -733,8 +744,22 @@ public:
 	std::condition_variable						m_cond;
 	std::map<DWORD, CThreadContext*>			m_mapWorkerThreadCtx;
 
-	/*std::mutex									m_lock2;
-	std::map<SOCKET, ULONGLONG>					m_mapCloseSocket;*/
-
 	bool										m_bShutdown;
+};
+class CIocpTcpClient : public CIocpTcpServer
+{
+public:
+	CIocpTcpClient();
+	virtual ~CIocpTcpClient();
+
+public:
+	virtual bool Create();
+	virtual bool BeginThreadPool(UINT nThreads = 0);
+	virtual bool ConnectOneServer(const std::string strIp, const int nPort);
+	virtual bool DisconnectServer(SOCKET hSocket);
+	virtual bool BeginConnect(const std::string& strIp, const int& nPort);
+	virtual bool Destroy();
+
+	virtual bool SendData(const void* pDataPtr, const int& nDataLen);
+	virtual void OnRequest(void* p1, void* p2);
 };
