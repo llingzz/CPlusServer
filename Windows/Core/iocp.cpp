@@ -977,6 +977,11 @@ void CIocpTcpServer::SocketThreadFunc()
 				{
 					socket = pContext->m_hSocket;
 				}
+				if (INVALID_SOCKET == socket)
+				{
+					myLogConsoleE("%s INVALID_SOCKET == socket", __FUNCTION__);
+					break;
+				}
 				/*查询该套接口上一个重叠操作失败的原因*/
 				BOOL bResult = ::WSAGetOverlappedResult(socket, &(pBuffer->m_ol), &dwError, FALSE, &dwFlags);
 				if (!bResult)
