@@ -34,6 +34,7 @@ enum class IoType {
 	enIoWrite = 2,
 	enIoRead = 3,
 	enIoClose = 4,
+	enIoConn = 5,
 };
 
 class CSocketContext;
@@ -692,6 +693,7 @@ public:
 	virtual bool PostAccept(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
 	virtual bool PostRecv(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
 	virtual bool PostSend(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
+	virtual bool PostConn(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
 
 	virtual bool CloseClient(CSocketContext* pContext);
 	virtual bool SendData(SOCKET hSocket, const void* pDataPtr, int nDataLen);
@@ -704,6 +706,7 @@ public:
 	virtual void HandleIoRead(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwTrans, DWORD dwError);
 	virtual void HandleIoWrite(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwTrans, DWORD dwError);
 	virtual void HandleIoClose(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwTrans, DWORD dwError);
+	virtual void HandleIoConn(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwTrans, DWORD dwError);
 
 	virtual void OnDataHandle(CSocketContext* pContext, IDataBuffer* pBuffer);
 	virtual void DispatchData(NetPacket* pNP);

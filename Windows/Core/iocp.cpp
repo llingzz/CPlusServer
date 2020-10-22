@@ -411,14 +411,68 @@ bool CIocpTcpServer::PostSend(CSocketContext* pContext, CSocketBuffer* pBuffer, 
 	return true;
 }
 
+bool CIocpTcpServer::PostConn(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError)
+{
+	DWORD dwBytes = 0;
+	DWORD dwSendBytes = 0;
+	GUID guid = WSAID_CONNECTEX;
+	LPFN_CONNECTEX lpfnConnectEx = nullptr;
+	if (SOCKET_ERROR == ::WSAIoctl(pContext->m_hSocket, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &lpfnConnectEx, sizeof(lpfnConnectEx), &dwBytes, NULL, NULL))
+	{
+		return false;
+	}
+	pBuffer->m_hSocket = pContext->m_hSocket;
+	pBuffer->m_ioType = IoType::enIoConn;
+
+	BOOL bRet = lpfnConnectEx(
+		pContext->m_hSocket,
+		(const SOCKADDR*)&pContext->m_remote,
+		sizeof(SOCKADDR_IN),
+		NULL,
+		NULL,
+		&dwSendBytes,
+		&pBuffer->m_ol);
+	DWORD dwError = ::WSAGetLastError();
+	if (!bRet && dwError != WSA_IO_PENDING)
+	{
+		return false;
+	}
+	return true;
+}
+
 bool CIocpTcpServer::CloseClient(CSocketContext* pContext)
 {
-	CSocketBuffer* pBuffer = m_pSocketBufferMgr->AllocateSocketBuffer(1);
+	CSocketBuffer* pBuffer = m_pSocketBufferMgr->AllocateSocketBuffer(1024);
 	if (pBuffer)
 	{
 		pBuffer->m_ioType = IoType::enIoClose;
+		pBuffer->m_hSocket = pContext->m_hSocket;
+
+#if 1
 		BOOL bResult = ::PostQueuedCompletionStatus(m_hCompletionPort, 1, (ULONG_PTR)pContext, &(pBuffer->m_ol));
 		return (TRUE == bResult) ? true : false;
+#else
+		DWORD dwBytes = 0;
+		DWORD dwSendBytes = 0;
+		GUID guid = WSAID_DISCONNECTEX;
+		LPFN_DISCONNECTEX lpfnDisconnectEx = nullptr;
+		if (SOCKET_ERROR == ::WSAIoctl(pContext->m_hSocket, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &lpfnDisconnectEx, sizeof(lpfnDisconnectEx), &dwBytes, NULL, NULL))
+		{
+			return false;
+		}
+		DWORD dwFlags = TF_REUSE_SOCKET;
+		BOOL bRet = lpfnDisconnectEx(
+			pContext->m_hSocket,
+			&pBuffer->m_ol,
+			dwFlags,
+			0);
+		DWORD dwError = ::WSAGetLastError();
+		if (!bRet && dwError != WSA_IO_PENDING)
+		{
+			return false;
+		}
+#endif
+
 	}
 	return false;
 }
@@ -555,6 +609,9 @@ void CIocpTcpServer::HandleIo(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwTrans
 	case IoType::enIoClose:
 		HandleIoClose(dwKey, pBuffer, dwTrans, dwError);
 		break;
+	case IoType::enIoConn:
+		HandleIoConn(dwKey, pBuffer, dwTrans, dwError);
+		break;
 	default:
 		HandleIoDefault(dwKey, pBuffer, dwTrans, dwError);
 		break;
@@ -605,7 +662,7 @@ void CIocpTcpServer::HandleIoAccept(DWORD dwKey, CSocketBuffer* pBuffer, DWORD d
 			// When the AcceptEx function returns, the socket sAcceptSocket is in the default state for a connected socket.
 			// The socket sAcceptSocket does not inherit the properties of the socket associated with sListenSocket parameter until SO_UPDATE_ACCEPT_CONTEXT is set on the socket.
 			int nRet = 0;
-			nRet = setsockopt(pContext->m_hSocket, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char*)& pListen->m_hSocket, sizeof(pListen->m_hSocket));
+			nRet = setsockopt(pContext->m_hSocket, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char*)&pListen->m_hSocket, sizeof(pListen->m_hSocket));
 			if (nRet != 0)
 			{
 				m_pSocketContextMgr->ReleaseSocketContext(pContext);
@@ -749,7 +806,6 @@ void CIocpTcpServer::HandleIoClose(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dw
 		CAutoLock lock(&pContext->m_lock);
 		if (!pContext->m_bClosing)
 		{
-			CAutoLock lock(&pContext->m_lock);
 			pContext->m_bClosing = TRUE;
 		}
 		if (0 == pContext->m_llPendingSends)
@@ -766,6 +822,43 @@ void CIocpTcpServer::HandleIoClose(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dw
 		else
 		{
 			CloseClient(pContext);
+		}
+	}
+	else
+	{
+		myLogConsoleW("%s pContext为空!!!", __FUNCTION__);
+	}
+	if (bResult)
+	{
+		m_pSocketContextMgr->RemovePendingCloses(pContext->m_hSocket);
+	}
+	m_pSocketBufferMgr->ReleaseSocketBuffer(pBuffer);
+}
+
+void CIocpTcpServer::HandleIoConn(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwTrans, DWORD dwError)
+{
+	/*处理Close请求*/
+	BOOL bResult = FALSE;
+	CSocketContext* pContext = (CSocketContext*)dwKey;
+	if (pContext)
+	{
+		int nRet = 0;
+		nRet = setsockopt(pContext->m_hSocket, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, NULL, 0);
+		if (nRet != 0)
+		{
+			m_pSocketContextMgr->ReleaseSocketContext(pContext);
+		}
+
+		CSocketBuffer* pNewBuffer = m_pSocketBufferMgr->AllocateSocketBuffer(1024);
+		if (pNewBuffer)
+		{
+			DWORD dwError = 0;
+			if (!PostRecv(pContext, pNewBuffer, dwError))
+			{
+				m_pSocketContextMgr->ReleaseSocketContext(pContext);
+				m_pSocketBufferMgr->ReleaseSocketBuffer(pNewBuffer);
+				myLogConsoleW("%s 套接字%d投递Read请求失败，断开连接", __FUNCTION__, pContext->m_hSocket);
+			}
 		}
 	}
 	else
@@ -930,6 +1023,7 @@ void CIocpTcpServer::SocketThreadFunc()
 	CSocketBuffer* pBuffer = NULL;
 	DWORD dwKey = 0;
 	DWORD dwTrans = 0;
+	DWORD dwError = NO_ERROR;
 	LPOVERLAPPED lpOverlapped = NULL;
 	while (true)
 	{
@@ -941,16 +1035,12 @@ void CIocpTcpServer::SocketThreadFunc()
 
 		/*获取完成端口队列数据*/
 		BOOL bRet = ::GetQueuedCompletionStatus(m_hCompletionPort, &dwTrans, (PULONG_PTR)& dwKey, &lpOverlapped, WSA_INFINITE);
-
-		DWORD dwError = NO_ERROR;
-		DWORD dwFlags = 0;
 		if (FALSE == bRet)
 		{
 			if (!lpOverlapped)
 			{
 				continue;
 			}
-
 			CSocketContext* pContext = (CSocketContext*)dwKey;
 			if (!pContext)
 			{
@@ -983,6 +1073,7 @@ void CIocpTcpServer::SocketThreadFunc()
 					break;
 				}
 				/*查询该套接口上一个重叠操作失败的原因*/
+				DWORD dwFlags = 0;
 				BOOL bResult = ::WSAGetOverlappedResult(socket, &(pBuffer->m_ol), &dwError, FALSE, &dwFlags);
 				if (!bResult)
 				{
@@ -1167,34 +1258,89 @@ bool CIocpTcpClient::DisconnectServer(SOCKET hSocket)
 		return false;
 	}
 
-	WSAOVERLAPPED wsaOverlapped;
-	ZeroMemory(&wsaOverlapped, sizeof(wsaOverlapped));
-	DWORD dwFlags = TF_REUSE_SOCKET;
-	BOOL bRet = lpfnDisconnectEx(
-		hSocket,
-		&wsaOverlapped,
-		dwFlags,
-		0);
-	DWORD dwError = ::WSAGetLastError();
-	if (!bRet && dwError != WSA_IO_PENDING)
+	CSocketBuffer* pBuffer = m_pSocketBufferMgr->AllocateSocketBuffer(1024);
+	if (pBuffer)
 	{
-		return false;
+		pBuffer->m_ioType = IoType::enIoClose;
+		pBuffer->m_hSocket = hSocket;
+		DWORD dwFlags = TF_REUSE_SOCKET;
+		BOOL bRet = lpfnDisconnectEx(
+			hSocket,
+			&pBuffer->m_ol,
+			dwFlags,
+			0);
+		DWORD dwError = ::WSAGetLastError();
+		if (!bRet && dwError != WSA_IO_PENDING)
+		{
+			return false;
+		}
 	}
-
-	CSocketContext* pContext = m_pSocketContextMgr->GetCtx(hSocket);
-	m_pSocketContextMgr->ReleaseSocketContext(pContext);
 	return true;
 }
 
 bool CIocpTcpClient::BeginConnect(const std::string& strIp, const int& nPort)
 {
+#if 1
+	SOCKET hSocket = ::WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
+	if (hSocket == INVALID_SOCKET)
+	{
+		return false;
+	}
+	CSocketContext* pContext = m_pSocketContextMgr->AllocateSocketContext(hSocket);
+	if (!pContext)
+	{
+		return false;
+	}
+
+	int nRet = 0;
+	unsigned long ul = 1;
+	nRet = ioctlsocket(pContext->m_hSocket, FIONBIO, (unsigned long*)& ul);
+	if (nRet != 0)
+	{
+		return false;
+	}
+
+	::CreateIoCompletionPort((HANDLE)pContext->m_hSocket, m_hCompletionPort, (DWORD)pContext, 0);
+
+	SOCKADDR_IN svrAddr;
+	memset(&svrAddr, 0, sizeof(SOCKADDR_IN));
+	svrAddr.sin_family = AF_INET;
+	svrAddr.sin_port = htons(0);
+	svrAddr.sin_addr.s_addr = INADDR_ANY;
+	int ret = ::bind(pContext->m_hSocket, (SOCKADDR*)& svrAddr, sizeof(svrAddr));
+	if (SOCKET_ERROR == ret)
+	{
+		return false;
+	}
+	svrAddr.sin_port = htons(nPort);
+	inet_pton(AF_INET, (PCSTR)strIp.c_str(), &svrAddr.sin_addr);
+	memcpy(&pContext->m_remote, &svrAddr, sizeof(SOCKADDR_IN));
+
+	CSocketBuffer* pBuffer = m_pSocketBufferMgr->AllocateSocketBuffer(1024);
+	if (!pBuffer)
+	{
+		return false;
+	}
+	DWORD dwError = NO_ERROR;
+	if (!PostConn(pContext, pBuffer, dwError))
+	{
+		return false;
+	}
+#else
 	ConnectOneServer(strIp, nPort);
+#endif
 	return true;
 }
 
 bool CIocpTcpClient::Destroy()
 {
-	Shutdown();
+	SOCKET hSocket = m_pSocketContextMgr->GetRemoteSocket();
+	if (INVALID_SOCKET == hSocket)
+	{
+		return false;
+	}
+	DisconnectServer(hSocket);
+	//Shutdown();
 	return true;
 }
 
@@ -1213,5 +1359,5 @@ void CIocpTcpClient::OnRequest(void* p1, void* p2)
 	myLogConsoleI("recv:[%s]", (char*)pNP->GetData());
 
 	//std::string str = "connected success!!!";
-	//SendData(pNP->GetCtx(), str.c_str(), str.size());
+	//SendData(str.c_str(), str.size());
 }
