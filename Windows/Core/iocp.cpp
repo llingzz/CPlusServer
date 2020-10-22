@@ -447,8 +447,7 @@ bool CIocpTcpServer::CloseClient(CSocketContext* pContext)
 	{
 		pBuffer->m_ioType = IoType::enIoClose;
 		pBuffer->m_hSocket = pContext->m_hSocket;
-
-#if 1
+#if 0
 		BOOL bResult = ::PostQueuedCompletionStatus(m_hCompletionPort, 1, (ULONG_PTR)pContext, &(pBuffer->m_ol));
 		return (TRUE == bResult) ? true : false;
 #else
@@ -472,7 +471,6 @@ bool CIocpTcpServer::CloseClient(CSocketContext* pContext)
 			return false;
 		}
 #endif
-
 	}
 	return false;
 }
@@ -803,6 +801,7 @@ void CIocpTcpServer::HandleIoClose(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dw
 	CSocketContext* pContext = (CSocketContext*)dwKey;
 	if (pContext)
 	{
+#if 0
 		CAutoLock lock(&pContext->m_lock);
 		if (!pContext->m_bClosing)
 		{
@@ -823,6 +822,7 @@ void CIocpTcpServer::HandleIoClose(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dw
 		{
 			CloseClient(pContext);
 		}
+#endif
 	}
 	else
 	{
@@ -1020,11 +1020,6 @@ void CIocpTcpServer::AcceptThreadFunc()
 
 void CIocpTcpServer::SocketThreadFunc()
 {
-	CSocketBuffer* pBuffer = NULL;
-	DWORD dwKey = 0;
-	DWORD dwTrans = 0;
-	DWORD dwError = NO_ERROR;
-	LPOVERLAPPED lpOverlapped = NULL;
 	while (true)
 	{
 		if (m_bShutdown)
@@ -1034,7 +1029,12 @@ void CIocpTcpServer::SocketThreadFunc()
 		}
 
 		/*获取完成端口队列数据*/
-		BOOL bRet = ::GetQueuedCompletionStatus(m_hCompletionPort, &dwTrans, (PULONG_PTR)& dwKey, &lpOverlapped, WSA_INFINITE);
+		CSocketBuffer* pBuffer = NULL;
+		DWORD dwKey = 0;
+		DWORD dwTrans = 0;
+		DWORD dwError = NO_ERROR;
+		LPOVERLAPPED lpOverlapped = NULL;
+		BOOL bRet = ::GetQueuedCompletionStatus(m_hCompletionPort, &dwTrans, (PULONG_PTR)&dwKey, &lpOverlapped, WSA_INFINITE);
 		if (FALSE == bRet)
 		{
 			if (!lpOverlapped)
@@ -1294,7 +1294,7 @@ bool CIocpTcpClient::BeginConnect(const std::string& strIp, const int& nPort)
 
 	int nRet = 0;
 	unsigned long ul = 1;
-	nRet = ioctlsocket(pContext->m_hSocket, FIONBIO, (unsigned long*)& ul);
+	nRet = ioctlsocket(pContext->m_hSocket, FIONBIO, (unsigned long*)&ul);
 	if (nRet != 0)
 	{
 		return false;
@@ -1307,7 +1307,7 @@ bool CIocpTcpClient::BeginConnect(const std::string& strIp, const int& nPort)
 	svrAddr.sin_family = AF_INET;
 	svrAddr.sin_port = htons(0);
 	svrAddr.sin_addr.s_addr = INADDR_ANY;
-	int ret = ::bind(pContext->m_hSocket, (SOCKADDR*)& svrAddr, sizeof(svrAddr));
+	int ret = ::bind(pContext->m_hSocket, (SOCKADDR*)&svrAddr, sizeof(svrAddr));
 	if (SOCKET_ERROR == ret)
 	{
 		return false;
