@@ -22,22 +22,33 @@ int main()
 	CIocpTcpClient* pClient = new CIocpTcpClient;
 	if (!pClient->Create())
 	{
+		pClient->Destroy();
 		myLogConsoleE("pClient->Create() failed");
+		return 0;
 	}
 	if (!pClient->BeginConnect(strIp, 8888))
 	{
+		pClient->Destroy();
 		myLogConsoleE("BeginConnect failed");
+		return 0;
 	}
-	//std::string str1 = "helloworld!";
+	std::string str1 = "helloworld!";
 	//std::string str2 = "helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!ssssssssssssss!helloworld!";
 	//std::string str3 = "abcdefg";
+	pClient->SendData(str1.c_str(), str1.size());
+	//pClient->SendData(str1.c_str(), str1.size());
 	//pClient->SendData(str1.c_str(), str1.size());
 	//pClient->SendData(str1.c_str(), str1.size());
 	//pClient->SendData(str3.c_str(), str3.size());
-	char a = getchar();
-	pClient->Destroy();
-	char b = getchar();
+	Sleep(5000);
+	pClient->DisconnectServer();
+	Sleep(5000);
 	pClient->BeginConnect(strIp, 8888);
+	while (TRUE)
+	{
+		Sleep(1000);
+		pClient->SendData(str1.c_str(), str1.size());
+	}
 	char c = getchar();
 #endif
 	return 0;

@@ -440,37 +440,66 @@ bool CIocpTcpServer::PostConn(CSocketContext* pContext, CSocketBuffer* pBuffer, 
 	return true;
 }
 
-bool CIocpTcpServer::CloseClient(CSocketContext* pContext)
+bool CIocpTcpServer::CloseClient(SOCKET hSocket)
 {
-	CSocketBuffer* pBuffer = m_pSocketBufferMgr->AllocateSocketBuffer(1024);
-	if (pBuffer)
+	if (INVALID_SOCKET == hSocket)
 	{
-		pBuffer->m_ioType = IoType::enIoClose;
-		pBuffer->m_hSocket = pContext->m_hSocket;
-#if 0
-		BOOL bResult = ::PostQueuedCompletionStatus(m_hCompletionPort, 1, (ULONG_PTR)pContext, &(pBuffer->m_ol));
-		return (TRUE == bResult) ? true : false;
+		return false;
+	}
+	CSocketContext* pCloseContext = m_pSocketContextMgr->GetCtx(hSocket);
+	if (pCloseContext)
+	{
+		BOOL bCloseImmediately = TRUE;
+		m_pSocketContextMgr->InsertPendingCloses(pCloseContext);
+		{
+			CAutoLock lk(&pCloseContext->m_lock);
+			if (!pCloseContext->m_bClosing)
+			{
+				pCloseContext->m_bClosing = TRUE;
+			}
+			if (pCloseContext->m_llPendingSends > 0)
+			{
+				bCloseImmediately = FALSE;
+			}
+		}
+		if (bCloseImmediately)
+		{
+#if 1
+			CSocketBuffer* pBuffer = m_pSocketBufferMgr->AllocateSocketBuffer(1024);
+			if (pBuffer)
+			{
+				pBuffer->m_ioType = IoType::enIoClose;
+				pBuffer->m_hSocket = pCloseContext->m_hSocket;
+				DWORD dwBytes = 0;
+				DWORD dwSendBytes = 0;
+				GUID guid = WSAID_DISCONNECTEX;
+				LPFN_DISCONNECTEX lpfnDisconnectEx = nullptr;
+				if (SOCKET_ERROR == ::WSAIoctl(pBuffer->m_hSocket, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &lpfnDisconnectEx, sizeof(lpfnDisconnectEx), &dwBytes, NULL, NULL))
+				{
+					return false;
+				}
+				DWORD dwFlags = TF_REUSE_SOCKET;
+				BOOL bRet = lpfnDisconnectEx(
+					pBuffer->m_hSocket,
+					&pBuffer->m_ol,
+					dwFlags,
+					0);
+				DWORD dwError = ::WSAGetLastError();
+				if (!bRet && dwError != WSA_IO_PENDING)
+				{
+					return false;
+				}
+			}
 #else
-		DWORD dwBytes = 0;
-		DWORD dwSendBytes = 0;
-		GUID guid = WSAID_DISCONNECTEX;
-		LPFN_DISCONNECTEX lpfnDisconnectEx = nullptr;
-		if (SOCKET_ERROR == ::WSAIoctl(pContext->m_hSocket, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &lpfnDisconnectEx, sizeof(lpfnDisconnectEx), &dwBytes, NULL, NULL))
-		{
-			return false;
-		}
-		DWORD dwFlags = TF_REUSE_SOCKET;
-		BOOL bRet = lpfnDisconnectEx(
-			pContext->m_hSocket,
-			&pBuffer->m_ol,
-			dwFlags,
-			0);
-		DWORD dwError = ::WSAGetLastError();
-		if (!bRet && dwError != WSA_IO_PENDING)
-		{
-			return false;
-		}
+			int nRet = NO_ERROR;
+			nRet = ::shutdown(pContext->m_hSocket, SD_SEND);
+			if (nRet != NO_ERROR)
+			{
+				int nError = WSAGetLastError();
+				myLogConsoleE("%s shutdown failed with errorcode %d", __FUNCTION__, nError);
+			}
 #endif
+		}
 	}
 	return false;
 }
@@ -553,7 +582,8 @@ void CIocpTcpServer::HandleIo(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwTrans
 			else
 			{
 				/*监听的套接字上发生错误，服务端主动关闭监听的该socket套接字*/
-				SAFE_RELEASE_SOCKET(pBuffer->m_hSocket);
+				CloseClient(pBuffer->m_hSocket);
+				myLogConsoleW("%s 监听的套接字%d发生错误", __FUNCTION__, pBuffer->m_hSocket);
 			}
 			m_pSocketBufferMgr->ReleaseSocketBuffer(pBuffer);
 		}
@@ -563,8 +593,8 @@ void CIocpTcpServer::HandleIo(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwTrans
 			CSocketListenContext* pListen = m_pSocketContextMgr->GetListenCtx();
 			if (IoType::enIoAccept == pBuffer->m_ioType && pListen)
 			{
-				m_pSocketBufferMgr->RemovePendingAccepts(pBuffer);
 				HandleIoAccept(dwKey, pBuffer, dwTrans, dwError);
+				m_pSocketBufferMgr->RemovePendingAccepts(pBuffer);
 			}
 			else
 			{
@@ -580,14 +610,15 @@ void CIocpTcpServer::HandleIo(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwTrans
 		if (IoType::enIoAccept != pBuffer->m_ioType)
 		{
 			/*套接字发生错误，断开连接，释放相关资源*/
-			myLogConsoleW("%s 套接字%d发生错误", __FUNCTION__, pBuffer->m_hSocket);
+			CloseClient(pContext->m_hSocket);
+			myLogConsoleW("%s 套接字%d发生错误", __FUNCTION__, pContext->m_hSocket);
 		}
 		else
 		{
 			/*监听的套接字上发生错误，服务端主动关闭监听的该socket套接字*/
-			SAFE_RELEASE_SOCKET(pBuffer->m_hSocket);
+			CloseClient(pBuffer->m_hSocket);
+			myLogConsoleW("%s 监听套接字%d发生错误", __FUNCTION__, pContext->m_hSocket);
 		}
-		m_pSocketContextMgr->ReleaseSocketContext(pContext);
 		m_pSocketBufferMgr->ReleaseSocketBuffer(pBuffer);
 		return;
 	}
@@ -656,46 +687,41 @@ void CIocpTcpServer::HandleIoAccept(DWORD dwKey, CSocketBuffer* pBuffer, DWORD d
 			::memcpy(&pContext->m_local, lpLocalAddr, nLocalLen);
 			::memcpy(&pContext->m_remote, lpRemoteAddr, nRemoteLen);
 
-			// https://docs.microsoft.com/en-us/windows/win32/api/mswsock/nf-mswsock-acceptex
-			// When the AcceptEx function returns, the socket sAcceptSocket is in the default state for a connected socket.
-			// The socket sAcceptSocket does not inherit the properties of the socket associated with sListenSocket parameter until SO_UPDATE_ACCEPT_CONTEXT is set on the socket.
+			// 使用AcceptEx之后，为了调用shutdown，需要设置套接字SO_UPDATE_ACCEPT_CONTEXT(https://docs.microsoft.com/en-us/windows/win32/api/mswsock/nf-mswsock-acceptex)
 			int nRet = 0;
 			nRet = setsockopt(pContext->m_hSocket, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char*)&pListen->m_hSocket, sizeof(pListen->m_hSocket));
 			if (nRet != 0)
 			{
-				m_pSocketContextMgr->ReleaseSocketContext(pContext);
+				CloseClient(pContext->m_hSocket);
+				m_pSocketBufferMgr->ReleaseSocketBuffer(pBuffer);
+				pListen->NotifyRepostAccepts();
+				DWORD dwErrCode = ::WSAGetLastError();
+				myLogConsoleW("%s 套接字:%d设置SO_UPDATE_ACCEPT_CONTEXT选项失败 code:%d", __FUNCTION__, pContext->m_hSocket, (int)dwErrCode);
 				return;
 			}
 
 			/*将新建连接的套接字socket和完成端口绑定*/
 			::CreateIoCompletionPort((HANDLE)pContext->m_hSocket, m_hCompletionPort, (DWORD)pContext, 0);
 
-			/*为新连接投递一个Read请求*/
+			/*为新连接投递一个Read请求，投递失败直接关闭连接*/
 			CSocketBuffer* pNewBuffer = m_pSocketBufferMgr->AllocateSocketBuffer(1024);
 			if (pNewBuffer)
 			{
 				DWORD dwError = 0;
 				if (!PostRecv(pContext, pNewBuffer, dwError))
 				{
-					/*投递失败，关闭新连接*/
-					m_pSocketContextMgr->ReleaseSocketContext(pContext);
+					CloseClient(pContext->m_hSocket);
 					m_pSocketBufferMgr->ReleaseSocketBuffer(pNewBuffer);
-					myLogConsoleW("%s 新连接套接字%d投递Read请求失败，断开连接", __FUNCTION__, pContext->m_hSocket);
+					myLogConsoleW("%s 新连接套接字%d投递Read请求失败，断开连接 code:%d", __FUNCTION__, pContext->m_hSocket, (int)dwError);
 				}
 			}
 		}
 		else
 		{
 			/*达到规定最多连接限制，关闭连接，释放其他相关资源*/
+			CloseClient(pContext->m_hSocket);
 			myLogConsoleW("%s 达到规定最多连接限制数%d，关闭连接", __FUNCTION__, 1000);
-			m_pSocketContextMgr->ReleaseSocketContext(pContext);
 		}
-	}
-	else
-	{
-		/*资源申请失败，关闭该连接*/
-		myLogConsoleW("%s 资源申请失败，关闭该连接", __FUNCTION__);
-		SAFE_RELEASE_SOCKET(pBuffer->m_hSocket);
 	}
 
 	/*Accept I/O操作完成，释放pBuffer*/
@@ -715,8 +741,8 @@ void CIocpTcpServer::HandleIoRead(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwT
 		if (!bRet)
 		{
 			/*连接处理接受数据失败，关闭连接*/
-			m_pSocketContextMgr->ReleaseSocketContext(pContext);
-			//myLogConsoleI("%s I/O读操作出现异常，对方套接字%d断开", __FUNCTION__, pContext->m_hSocket);
+			CloseClient(pContext->m_hSocket);
+			myLogConsoleW("%s I/O读操作出现异常，关闭套接字%d", __FUNCTION__, pContext->m_hSocket);
 		}
 		else
 		{
@@ -725,9 +751,9 @@ void CIocpTcpServer::HandleIoRead(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwT
 			if (!pNewBuffer || !PostRecv(pContext, pNewBuffer, dwError))
 			{
 				/*投递读事件失败，关闭连接*/
-				myLogConsoleI("%s I/O读操作出现异常，对方套接字断开", __FUNCTION__);
-				m_pSocketContextMgr->ReleaseSocketContext(pContext);
+				CloseClient(pContext->m_hSocket);
 				m_pSocketBufferMgr->ReleaseSocketBuffer(pNewBuffer);
+				myLogConsoleW("%s I/O读操作出现异常，关闭套接字%d code:%d", __FUNCTION__, pContext->m_hSocket, dwError);
 			}
 		}
 	}
@@ -747,8 +773,8 @@ void CIocpTcpServer::HandleIoWrite(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dw
 		if (0 == dwTrans)
 		{
 			/*I/O写操作出现异常，关闭该套接字的连接，释放相关资源*/
-			myLogConsoleI("%s I/O写操作出现异常，对方套接字%d断开", __FUNCTION__, pContext->m_hSocket);
-			m_pSocketContextMgr->ReleaseSocketContext(pContext);
+			CloseClient(pContext->m_hSocket);
+			myLogConsoleI("%s I/O写操作出现异常，关闭套接字%d", __FUNCTION__, pContext->m_hSocket);
 		}
 		else
 		{
@@ -785,6 +811,48 @@ void CIocpTcpServer::HandleIoWrite(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dw
 				}
 			}
 #endif
+			if (pContext->m_bClosing && pContext->m_llPendingSends <= 0)
+			{
+#if 1
+				CSocketBuffer* pBuffer = m_pSocketBufferMgr->AllocateSocketBuffer(1024);
+				if (pBuffer)
+				{
+					pBuffer->m_ioType = IoType::enIoClose;
+					pBuffer->m_hSocket = pContext->m_hSocket;
+					DWORD dwBytes = 0;
+					DWORD dwSendBytes = 0;
+					GUID guid = WSAID_DISCONNECTEX;
+					LPFN_DISCONNECTEX lpfnDisconnectEx = nullptr;
+					if (SOCKET_ERROR == ::WSAIoctl(pBuffer->m_hSocket, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &lpfnDisconnectEx, sizeof(lpfnDisconnectEx), &dwBytes, NULL, NULL))
+					{
+						m_pSocketBufferMgr->ReleaseSocketBuffer(pBuffer);
+						myLogConsoleW("%s 获取DisconnectEx指针失败", __FUNCTION__);
+						return;
+					}
+					DWORD dwFlags = TF_REUSE_SOCKET;
+					BOOL bRet = lpfnDisconnectEx(
+						pBuffer->m_hSocket,
+						&pBuffer->m_ol,
+						dwFlags,
+						0);
+					DWORD dwError = ::WSAGetLastError();
+					if (!bRet && dwError != WSA_IO_PENDING)
+					{
+						m_pSocketBufferMgr->ReleaseSocketBuffer(pBuffer);
+						myLogConsoleW("%s DisconnectEx失败 套接字%d", __FUNCTION__, pBuffer->m_hSocket);
+						return;
+					}
+				}
+#else
+				int nRet = NO_ERROR;
+				nRet = ::shutdown(pContext->m_hSocket, SD_SEND);
+				if (nRet != NO_ERROR)
+				{
+					int nError = WSAGetLastError();
+					myLogConsoleE("%s shutdown failed with errorcode %d", __FUNCTION__, nError);
+				}
+#endif
+			}
 		}
 	}
 	else
@@ -797,47 +865,22 @@ void CIocpTcpServer::HandleIoWrite(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dw
 void CIocpTcpServer::HandleIoClose(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwTrans, DWORD dwError)
 {
 	/*处理Close请求*/
-	BOOL bResult = FALSE;
 	CSocketContext* pContext = (CSocketContext*)dwKey;
 	if (pContext)
 	{
-#if 0
-		CAutoLock lock(&pContext->m_lock);
-		if (!pContext->m_bClosing)
-		{
-			pContext->m_bClosing = TRUE;
-		}
-		if (0 == pContext->m_llPendingSends)
-		{
-			bResult = TRUE;
-			int nRet = NO_ERROR;
-			nRet = ::shutdown(pContext->m_hSocket, SD_SEND);
-			if (nRet != NO_ERROR)
-			{
-				int nError = WSAGetLastError();
-				myLogConsoleE("%s shutdown failed with errorcode %d", __FUNCTION__, nError);
-			}
-		}
-		else
-		{
-			CloseClient(pContext);
-		}
-#endif
+		m_pSocketContextMgr->RemovePendingCloses(pContext->m_hSocket);
+		m_pSocketContextMgr->ReleaseSocketContext(pContext);
 	}
 	else
 	{
 		myLogConsoleW("%s pContext为空!!!", __FUNCTION__);
-	}
-	if (bResult)
-	{
-		m_pSocketContextMgr->RemovePendingCloses(pContext->m_hSocket);
 	}
 	m_pSocketBufferMgr->ReleaseSocketBuffer(pBuffer);
 }
 
 void CIocpTcpServer::HandleIoConn(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwTrans, DWORD dwError)
 {
-	/*处理Close请求*/
+	/*处理Connect请求*/
 	BOOL bResult = FALSE;
 	CSocketContext* pContext = (CSocketContext*)dwKey;
 	if (pContext)
@@ -846,7 +889,9 @@ void CIocpTcpServer::HandleIoConn(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwT
 		nRet = setsockopt(pContext->m_hSocket, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, NULL, 0);
 		if (nRet != 0)
 		{
-			m_pSocketContextMgr->ReleaseSocketContext(pContext);
+			CloseClient(pContext->m_hSocket);
+			DWORD dwErrCode = ::WSAGetLastError();
+			myLogConsoleW("%s 套接字:%d设置SO_UPDATE_CONNECT_CONTEXT选项失败 code:%d", __FUNCTION__, pContext->m_hSocket, (int)dwErrCode);
 		}
 
 		CSocketBuffer* pNewBuffer = m_pSocketBufferMgr->AllocateSocketBuffer(1024);
@@ -855,19 +900,15 @@ void CIocpTcpServer::HandleIoConn(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwT
 			DWORD dwError = 0;
 			if (!PostRecv(pContext, pNewBuffer, dwError))
 			{
-				m_pSocketContextMgr->ReleaseSocketContext(pContext);
+				CloseClient(pContext->m_hSocket);
 				m_pSocketBufferMgr->ReleaseSocketBuffer(pNewBuffer);
-				myLogConsoleW("%s 套接字%d投递Read请求失败，断开连接", __FUNCTION__, pContext->m_hSocket);
+				myLogConsoleW("%s 套接字%d投递Read请求失败，断开连接 code:%d", __FUNCTION__, pContext->m_hSocket, dwError);
 			}
 		}
 	}
 	else
 	{
 		myLogConsoleW("%s pContext为空!!!", __FUNCTION__);
-	}
-	if (bResult)
-	{
-		m_pSocketContextMgr->RemovePendingCloses(pContext->m_hSocket);
 	}
 	m_pSocketBufferMgr->ReleaseSocketBuffer(pBuffer);
 }
@@ -881,7 +922,6 @@ void CIocpTcpServer::OnDataHandle(CSocketContext* pContext, IDataBuffer* pBuffer
 
 void CIocpTcpServer::DispatchData(NetPacket* pNP)
 {
-	//myLogConsoleI("recv data:[%s]", pNP->GetData());
 	OnRequest((void*)pNP, GetWorkerContext());
 	pNP->Release();
 }
@@ -898,7 +938,7 @@ void CIocpTcpServer::OnRequest(void* p1, void* p2)
 	buffer.Write(pNP->GetBuffer()->GetData(), nSize);
 	SendData(pNP->GetCtx(), buffer.GetBuffer(), buffer.GetBufferLen());*/
 	SendData(pNP->GetCtx(), str.c_str(), str.size());
-	CloseClient(pNP->GetCtx());
+	//CloseClient(pNP->GetCtx());
 }
 
 void* CIocpTcpServer::GetWorkerContext()
@@ -969,8 +1009,7 @@ void CIocpTcpServer::AcceptThreadFunc()
 		{
 			// 检查当前挂起的所有AcceptEx I/O建立时长
 			m_pSocketBufferMgr->CheckPendingAccpets();
-
-			// 检查当前挂起的所有待关闭连接
+			// 检查当前挂起的所有待关闭连接，防止恶意连接占用套接字资源
 			m_pSocketContextMgr->CheckPendingCloses();
 		}
 		else if(WSA_WAIT_EVENT_0 == dwWaitRet)
@@ -1180,123 +1219,23 @@ bool CIocpTcpClient::ConnectOneServer(const std::string strIp, const int nPort)
 	SOCKET hSocket = ::WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
 	if (hSocket == INVALID_SOCKET)
 	{
-		return false;
-	}
-
-	CSocketContext* pContext = m_pSocketContextMgr->AllocateSocketContext(hSocket);
-	if (!pContext)
-	{
-		return false;
-	}
-	pContext->m_hSocket = hSocket;
-
-	::CreateIoCompletionPort((HANDLE)pContext->m_hSocket, m_hCompletionPort, (DWORD)pContext, 0);
-
-	DWORD dwBytes = 0;
-	DWORD dwSendBytes = 0;
-	GUID guid = WSAID_CONNECTEX;
-	LPFN_CONNECTEX lpfnConnectEx = nullptr;
-	if (SOCKET_ERROR == ::WSAIoctl(hSocket, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &lpfnConnectEx, sizeof(lpfnConnectEx), &dwBytes, NULL, NULL))
-	{
-		return false;
-	}
-
-	SOCKADDR_IN svrAddr;
-	memset(&svrAddr, 0, sizeof(SOCKADDR_IN));
-	svrAddr.sin_family = AF_INET;
-	svrAddr.sin_port = htons(0);
-	svrAddr.sin_addr.s_addr = INADDR_ANY;
-
-	int ret = ::bind(pContext->m_hSocket, (SOCKADDR*)&svrAddr, sizeof(svrAddr));
-	if (SOCKET_ERROR == ret)
-	{
-		return false;
-	}
-
-	svrAddr.sin_port = htons(nPort);
-	inet_pton(AF_INET, (PCSTR)strIp.c_str(), &svrAddr.sin_addr);
-
-	WSAOVERLAPPED wsaOverlapped;
-	ZeroMemory(&wsaOverlapped, sizeof(wsaOverlapped));
-	BOOL bRet = lpfnConnectEx(
-		pContext->m_hSocket,
-		(const SOCKADDR*)&svrAddr,
-		sizeof(SOCKADDR_IN),
-		NULL,
-		NULL,
-		&dwSendBytes,
-		&wsaOverlapped);
-	DWORD dwError = ::WSAGetLastError();
-	if (!bRet && dwError != WSA_IO_PENDING)
-	{
-		return false;
-	}
-
-	CSocketBuffer* pNewBuffer = m_pSocketBufferMgr->AllocateSocketBuffer(1024);
-	if (pNewBuffer)
-	{
-		DWORD dwError = 0;
-		if (!PostRecv(pContext, pNewBuffer, dwError))
-		{
-			m_pSocketContextMgr->ReleaseSocketContext(pContext);
-			m_pSocketBufferMgr->ReleaseSocketBuffer(pNewBuffer);
-			myLogConsoleW("%s 套接字%d投递Read请求失败，断开连接", __FUNCTION__, pContext->m_hSocket);
-			return false;
-		}
-	}
-	return true;
-}
-
-bool CIocpTcpClient::DisconnectServer(SOCKET hSocket)
-{
-	DWORD dwBytes = 0;
-	DWORD dwSendBytes = 0;
-	GUID guid = WSAID_DISCONNECTEX;
-	LPFN_DISCONNECTEX lpfnDisconnectEx = nullptr;
-	if (SOCKET_ERROR == ::WSAIoctl(hSocket, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &lpfnDisconnectEx, sizeof(lpfnDisconnectEx), &dwBytes, NULL, NULL))
-	{
-		return false;
-	}
-
-	CSocketBuffer* pBuffer = m_pSocketBufferMgr->AllocateSocketBuffer(1024);
-	if (pBuffer)
-	{
-		pBuffer->m_ioType = IoType::enIoClose;
-		pBuffer->m_hSocket = hSocket;
-		DWORD dwFlags = TF_REUSE_SOCKET;
-		BOOL bRet = lpfnDisconnectEx(
-			hSocket,
-			&pBuffer->m_ol,
-			dwFlags,
-			0);
-		DWORD dwError = ::WSAGetLastError();
-		if (!bRet && dwError != WSA_IO_PENDING)
-		{
-			return false;
-		}
-	}
-	return true;
-}
-
-bool CIocpTcpClient::BeginConnect(const std::string& strIp, const int& nPort)
-{
-#if 1
-	SOCKET hSocket = ::WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
-	if (hSocket == INVALID_SOCKET)
-	{
+		myLogConsoleE("%s 创建套接字失败", __FUNCTION__);
 		return false;
 	}
 	CSocketContext* pContext = m_pSocketContextMgr->AllocateSocketContext(hSocket);
 	if (!pContext)
 	{
+		myLogConsoleE("%s AllocateSocketContext失败", __FUNCTION__);
 		return false;
 	}
 
 	int nRet = 0;
 	unsigned long ul = 1;
-	nRet = ioctlsocket(pContext->m_hSocket, FIONBIO, (unsigned long*)&ul);
+	nRet = ioctlsocket(pContext->m_hSocket, FIONBIO, (unsigned long*)& ul);
 	if (nRet != 0)
 	{
+		DWORD dwErrCode = ::WSAGetLastError();
+		myLogConsoleE("%s 设置套接字%d为非阻塞模式失败 code:%d", __FUNCTION__, pContext->m_hSocket, (int)dwErrCode);
 		return false;
 	}
 
@@ -1307,9 +1246,11 @@ bool CIocpTcpClient::BeginConnect(const std::string& strIp, const int& nPort)
 	svrAddr.sin_family = AF_INET;
 	svrAddr.sin_port = htons(0);
 	svrAddr.sin_addr.s_addr = INADDR_ANY;
-	int ret = ::bind(pContext->m_hSocket, (SOCKADDR*)&svrAddr, sizeof(svrAddr));
+	int ret = ::bind(pContext->m_hSocket, (SOCKADDR*)& svrAddr, sizeof(svrAddr));
 	if (SOCKET_ERROR == ret)
 	{
+		DWORD dwErrCode = ::WSAGetLastError();
+		myLogConsoleE("%s 套接字%dbind失败 code:%d", __FUNCTION__, pContext->m_hSocket, (int)dwErrCode);
 		return false;
 	}
 	svrAddr.sin_port = htons(nPort);
@@ -1319,35 +1260,45 @@ bool CIocpTcpClient::BeginConnect(const std::string& strIp, const int& nPort)
 	CSocketBuffer* pBuffer = m_pSocketBufferMgr->AllocateSocketBuffer(1024);
 	if (!pBuffer)
 	{
+		myLogConsoleE("%s AllocateSocketBuffer失败", __FUNCTION__);
 		return false;
 	}
 	DWORD dwError = NO_ERROR;
 	if (!PostConn(pContext, pBuffer, dwError))
 	{
+		myLogConsoleE("%s 投递IoConn失败 套接字%d code:%d", __FUNCTION__, pContext->m_hSocket, (int)dwError);
 		return false;
 	}
-#else
-	ConnectOneServer(strIp, nPort);
-#endif
 	return true;
 }
 
-bool CIocpTcpClient::Destroy()
+bool CIocpTcpClient::BeginConnect(const std::string& strIp, const int& nPort)
+{
+	return ConnectOneServer(strIp, nPort);
+}
+
+bool CIocpTcpClient::DisconnectServer()
 {
 	SOCKET hSocket = m_pSocketContextMgr->GetRemoteSocket();
 	if (INVALID_SOCKET == hSocket)
 	{
+		myLogConsoleE("%s 套接字无效", __FUNCTION__);
 		return false;
 	}
-	DisconnectServer(hSocket);
-	//Shutdown();
-	return true;
+	return CloseClient(hSocket);
+}
+
+bool CIocpTcpClient::Destroy()
+{
+	return Shutdown();
 }
 
 bool CIocpTcpClient::SendData(const void* pDataPtr, const int& nDataLen)
 {
 	SOCKET hSocket = m_pSocketContextMgr->GetRemoteSocket();
-	if (INVALID_SOCKET == hSocket) {
+	if (INVALID_SOCKET == hSocket)
+	{
+		myLogConsoleE("%s 套接字无效", __FUNCTION__);
 		return false;
 	}
 	return __super::SendData(hSocket, pDataPtr, nDataLen);

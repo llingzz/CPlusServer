@@ -191,6 +191,7 @@ private:
 
 		SendData(response.m_pContext, strRes.c_str(), strRes.size());
 		//CloseClient(response.m_pContext);
+		//CloseClient(response.m_pContext->m_hSocket);
 	}
 
 private:

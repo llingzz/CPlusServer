@@ -490,6 +490,10 @@ public:
 			pContext->m_pAllocator = m_pAllocator;
 			m_mapConnection.insert(std::make_pair(hSocket, pContext));
 		}
+		else
+		{
+			SAFE_RELEASE_SOCKET(hSocket);
+		}
 		return pContext;
 	}
 	void ReleaseSocketContext(CSocketContext* pContext)
@@ -546,7 +550,11 @@ public:
 	}
 	void InsertPendingCloses(CSocketContext* pContext)
 	{
-		CAutoLock lock(&m_lock);
+		if (INVALID_SOCKET == pContext->m_hSocket)
+		{
+			return;
+		}
+		CAutoLock lock(&m_lockClose);
 		if (m_mapPendingCloses.find(pContext->m_hSocket) == m_mapPendingCloses.end())
 		{
 			m_mapPendingCloses.insert(std::make_pair(pContext->m_hSocket, GetTickCount64()));
@@ -554,40 +562,31 @@ public:
 	}
 	void RemovePendingCloses(SOCKET hSocket)
 	{
-		CAutoLock lock(&m_lock);
-		auto iter = m_mapPendingCloses.find(hSocket);
-		if (iter != m_mapPendingCloses.end())
+		if (INVALID_SOCKET == hSocket)
 		{
-			m_mapPendingCloses.erase(iter);
+			return;
+		}
+		CAutoLock lock(&m_lockClose);
+		if (m_mapPendingCloses.find(hSocket) != m_mapPendingCloses.end())
+		{
+			m_mapPendingCloses.erase(hSocket);
 		}
 	}
 	void CheckPendingCloses()
 	{
-		auto tick = GetTickCount64();
-		std::map<SOCKET, ULONGLONG> mapDelt;
-		std::map<SOCKET, ULONGLONG> mapTemp;
+		ULONGLONG tick = GetTickCount64();
+		CAutoLock lock(&m_lockClose);
+		for (auto iter = m_mapPendingCloses.begin(); iter != m_mapPendingCloses.end(); iter++)
 		{
-			CAutoLock lock(&m_lock);
-			mapTemp = m_mapPendingCloses;
-		}
-		for (auto iter : mapTemp)
-		{
-			auto pContext = GetCtx(iter.first);
+			auto pContext = GetCtx(iter->first);
 			if (pContext)
 			{
-				if ((tick - iter.second) > 5000 && pContext->GetPendingRecvs() <= 1)
+				if ((tick - iter->second) > 5000 && pContext->GetPendingRecvs() <= 1)
 				{
 					ReleaseSocketContext(pContext);
-					LINGER linger = { 1,0 };
-					::setsockopt(iter.first, SOL_SOCKET, SO_LINGER, (char*)&linger, sizeof(LINGER));
-					mapDelt.insert(std::make_pair(iter.first, iter.second));
+					m_mapPendingCloses.erase(iter);
 				}
 			}
-			
-		}
-		for (auto iter : mapDelt)
-		{
-			RemovePendingCloses(iter.first);
 		}
 	}
 
@@ -655,6 +654,7 @@ private:
 	CSocketBufferMgr*					m_pBufManager;
 	CDataBufferMgr*						m_pAllocator;
 	CCritSec							m_lock;
+	CCritSec							m_lockClose;
 };
 
 class CThreadContext {
@@ -695,7 +695,7 @@ public:
 	virtual bool PostSend(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
 	virtual bool PostConn(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
 
-	virtual bool CloseClient(CSocketContext* pContext);
+	virtual bool CloseClient(SOCKET hSocket);
 	virtual bool SendData(SOCKET hSocket, const void* pDataPtr, int nDataLen);
 	virtual bool SendData(CSocketContext* pContext, const void* pDataPtr, int nDataLen);
 	virtual bool SendPbData(CSocketContext* pContext, const google::protobuf::Message& pdata);
@@ -755,12 +755,16 @@ public:
 	CIocpTcpClient();
 	virtual ~CIocpTcpClient();
 
+private:
+	CIocpTcpClient(const CIocpTcpClient&) = delete;
+	CIocpTcpClient& operator=(const CIocpTcpClient&) = delete;
+
 public:
 	virtual bool Create();
 	virtual bool BeginThreadPool(UINT nThreads = 0);
 	virtual bool ConnectOneServer(const std::string strIp, const int nPort);
-	virtual bool DisconnectServer(SOCKET hSocket);
 	virtual bool BeginConnect(const std::string& strIp, const int& nPort);
+	virtual bool DisconnectServer();
 	virtual bool Destroy();
 
 	virtual bool SendData(const void* pDataPtr, const int& nDataLen);

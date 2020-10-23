@@ -63,10 +63,17 @@ void CDBServer::OnRequest(void* p1, void* p2)
 	CWorkerContext* pThreadContext = (CWorkerContext*)p2;
 
 #if 0
-	DB_TestNormal(pThreadContext);
+	//DB_TestNormal(pThreadContext);
 #else
-	DB_TestTrans(pThreadContext);
+	//DB_TestTrans(pThreadContext);
 #endif
+
+	myLogConsoleI("[%s] recv:[%s]", __FUNCTION__, pData->GetData());
+
+	std::string str = "hello";
+	SendData(pData->GetCtx(), str.c_str(), str.size());
+	//CloseClient(pData->GetCtx());
+	//CloseClient(pData->GetCtx()->m_hSocket);
 
 	/*if (pThreadContext->m_bReconnectMain) {
 		ConnectDB(pThreadContext);

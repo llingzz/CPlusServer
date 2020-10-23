@@ -142,6 +142,7 @@ public:
 	}
 	CLog* SetLogLevel(int nLevel)
 	{
+		SetConsoleColor((enLogLevel)nLevel);
 		m_nLogLevel = nLevel;
 		return this;
 	}
@@ -194,6 +195,35 @@ private:
 		strRes.append(m_szFileName);
 
 		strcpy_s(m_szFilePath, strRes.length() + 1, strRes.c_str());
+	}
+	bool SetConsoleColor(enLogLevel enLevel)
+	{
+		WORD wAttributes = FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_GREEN;
+		switch (enLevel)
+		{
+		case enINFO:
+		case enTRACE:
+		case enDEBUG:
+			wAttributes = FOREGROUND_GREEN | FOREGROUND_GREEN | FOREGROUND_GREEN;
+			break;
+		case enWARN:
+			wAttributes = FOREGROUND_INTENSITY | FOREGROUND_RED | FOREGROUND_GREEN;
+			break;
+		case enERROR:
+		case enFATAL:
+			wAttributes = FOREGROUND_RED | FOREGROUND_RED | FOREGROUND_RED;
+			break;
+		case enDEFAULT:
+		default:
+			wAttributes = FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_GREEN;
+			break;
+		}
+		HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+		if (hConsole == INVALID_HANDLE_VALUE)
+		{
+			return FALSE;
+		}
+		return SetConsoleTextAttribute(hConsole, wAttributes);
 	}
 
 private:
