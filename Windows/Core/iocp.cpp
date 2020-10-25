@@ -662,10 +662,6 @@ void CIocpTcpServer::HandleIoAccept(DWORD dwKey, CSocketBuffer* pBuffer, DWORD d
 	CSocketContext* pContext = m_pSocketContextMgr->AllocateSocketContext(pBuffer->m_hSocket);
 	if (pContext)
 	{
-		/*BYTE getAcceptExSockaddr[64];
-		ZeroMemory(&getAcceptExSockaddr, 64);*/
-		LPSOCKADDR lpLocalAddr = NULL;
-		LPSOCKADDR lpRemoteAddr = NULL;
 		int nLocalLen = sizeof(SOCKADDR_IN);
 		int nRemoteLen = sizeof(SOCKADDR_IN);
 		pListen->m_lpfnGetAcceptExSockaddrs(
@@ -674,14 +670,11 @@ void CIocpTcpServer::HandleIoAccept(DWORD dwKey, CSocketBuffer* pBuffer, DWORD d
 			/*pBuffer->m_nBufferLen - ((sizeof(SOCKADDR_IN) + 16) * 2)*/0,
 			sizeof(SOCKADDR_IN) + 16,
 			sizeof(SOCKADDR_IN) + 16,
-			(LPSOCKADDR*)&lpLocalAddr,
+			(LPSOCKADDR*)&pContext->m_local,
 			&nLocalLen,
-			(LPSOCKADDR*)&lpRemoteAddr,
+			(LPSOCKADDR*)&pContext->m_remote,
 			&nRemoteLen
 		);
-
-		memcpy(&pContext->m_local, lpLocalAddr, nLocalLen);
-		memcpy(&pContext->m_remote, lpRemoteAddr, nRemoteLen);
 
 		// 使用AcceptEx之后，为了调用shutdown，需要设置套接字SO_UPDATE_ACCEPT_CONTEXT(https://docs.microsoft.com/en-us/windows/win32/api/mswsock/nf-mswsock-acceptex)
 		int nRet = 0;
