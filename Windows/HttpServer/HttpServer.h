@@ -87,16 +87,53 @@ public:
 
 typedef std::function<void(CHttpRequest&, CHttpResponse&)> Handler;
 typedef std::vector<std::pair<std::regex, Handler>> Handlers;
+class CDBClient : public CIocpTcpClient {
+public:
+	CDBClient() {
+
+	}
+	~CDBClient() {
+
+	}
+
+public:
+	virtual void OnRequest(void* p1, void* p2) {
+		NetPacket* pNP = (NetPacket*)p1;
+		myLogConsoleI("recvDB:[%s]", (char*)pNP->GetData());
+	}
+
+private:
+	CDBClient(const CDBClient&) = delete;
+	CDBClient& operator=(const CDBClient&) = delete;
+};
 class CHttpServer :public CIocpTcpServer {
 public:
 	CHttpServer() : CIocpTcpServer(CPS_FLAG_DEFAULT) {
+		m_pDBClient = NULL;
 		registeGetCallback(std::string("echo"), std::bind(&CHttpServer::echoCallback, this, std::placeholders::_1, std::placeholders::_2));
+		registeGetCallback(std::string("getUserInfo"), std::bind(&CHttpServer::getUserInfoCallback, this, std::placeholders::_1, std::placeholders::_2));
 	}
 	virtual ~CHttpServer() {
 
 	}
 
 public:
+	virtual bool Initialize(const char* lpSzIp, UINT nPort, UINT nInitAccepts, UINT nMaxAccpets, UINT nThreads, UINT nMaxConnections) {
+		bool bRet = __super::Initialize(lpSzIp, nPort, nInitAccepts, nMaxAccpets, nThreads, nMaxConnections);
+		m_pDBClient = new CDBClient;
+		if (!m_pDBClient) {
+			return false;
+		}
+		if (!m_pDBClient->Create()) {
+			return false;
+		}
+		std::string strDBSvrIp = "127.0.0.1";
+		int nDBSvrPort = 8888;
+		if (!m_pDBClient->BeginConnect(strDBSvrIp, nDBSvrPort)) {
+			return false;
+		}
+		return bRet;
+	}
 	virtual void OnRequest(void* p1, void* p2)
 	{
 		NetPacket* pNP = (NetPacket*)p1;
@@ -155,6 +192,10 @@ private:
 		response.m_strBody = "hello world!";
 		return httpResponse(response);
 	}
+	void getUserInfoCallback(CHttpRequest& request, CHttpResponse& response) {
+		std::string strUserId = "123456";
+		m_pDBClient->SendData(strUserId.c_str(), strUserId.size());
+	}
 	void registeGetCallback(std::string strMethod, Handler handler) {
 		m_mapGetIterfaces.insert(std::make_pair(strMethod, handler));
 	}
@@ -190,7 +231,6 @@ private:
 		strRes += response.m_strBody;
 
 		SendData(response.m_pContext, strRes.c_str(), strRes.size());
-		//CloseClient(response.m_pContext);
 		//CloseClient(response.m_pContext->m_hSocket);
 	}
 
@@ -199,5 +239,6 @@ private:
 	CHttpServer& operator=(const CHttpServer&) = delete;
 
 private:
+	CDBClient* m_pDBClient;
 	std::multimap<std::string, Handler> m_mapGetIterfaces;
 };

@@ -5,7 +5,7 @@ bool CSocketContext::HandleRecvData(CSocketBuffer* pBuffer, DWORD dwTrans, CIocp
 {
 	if (dwTrans <= 0)
 	{
-		myLogConsoleI("%s 套接字%d断开连接", __FUNCTION__, pBuffer->m_hSocket);
+		myLogConsoleW("%s 套接字%d断开连接", __FUNCTION__, pBuffer->m_hSocket);
 		return false;
 	}
 
@@ -118,7 +118,7 @@ CIocpTcpServer::~CIocpTcpServer()
 
 }
 
-bool CIocpTcpServer::InitializeMembers()
+bool CIocpTcpServer::InitializeMembers(UINT nMaxConnections)
 {
 	m_pAllocator = new CDataBufferMgr;
 	if (!m_pAllocator)
@@ -137,7 +137,7 @@ bool CIocpTcpServer::InitializeMembers()
 	{
 		return false;
 	}
-	if (!m_pSocketContextMgr->Init(m_pAllocator, m_pSocketBufferMgr))
+	if (!m_pSocketContextMgr->Init(m_pAllocator, m_pSocketBufferMgr, nMaxConnections))
 	{
 		return false;
 	}
@@ -291,7 +291,7 @@ bool CIocpTcpServer::Initialize(const char* lpSzIp, UINT nPort, UINT nInitAccept
 		myLogConsoleE("%s InitializeIo失败", __FUNCTION__);
 		return false;
 	}
-	if (!InitializeMembers())
+	if (!InitializeMembers(nMaxConnections))
 	{
 		myLogConsoleE("%s InitializeMembers失败", __FUNCTION__);
 		return false;
@@ -382,9 +382,9 @@ bool CIocpTcpServer::PostRecv(CSocketContext* pContext, CSocketBuffer* pBuffer, 
 
 bool CIocpTcpServer::PostSend(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError)
 {
-	if (TRUE == pContext->m_bClosing)
+	if (pContext->m_bClosing)
 	{
-		myLogConsoleW("%s denied because of the socket:%d is closing", __FUNCTION__, pContext->m_hSocket);
+		myLogConsoleW("%s 套接字%d正在关闭", __FUNCTION__, pContext->m_hSocket);
 		return false;
 	}
 
@@ -404,10 +404,6 @@ bool CIocpTcpServer::PostSend(CSocketContext* pContext, CSocketBuffer* pBuffer, 
 		myLogConsoleW("%s WSASend 失败 WSAGetLastError:%ld", __FUNCTION__, dwWSAError);
 		return false;
 	}
-#if 0
-	pContext->m_llPendingSends++;
-#else
-#endif
 	return true;
 }
 
@@ -526,30 +522,33 @@ bool CIocpTcpServer::SendData(CSocketContext* pContext, const void* pDataPtr, in
 	}
 #else
 	CSocketBuffer* pBuffer = m_pSocketBufferMgr->AllocateSocketBuffer(nDataLen);
-	memcpy(pBuffer->m_pBuffer->GetBuffer(), pDataPtr, nDataLen);
-	CAutoLock lk(&pContext->m_lock);
-	if (pContext->m_llPendingSends <= 0)
+	if (pBuffer)
 	{
-		DWORD dwError = 0;
-		pContext->m_llPendingSends++;
-		return PostSend(pContext, pBuffer, dwError);
-	}
-	else
-	{
-		if (!pContext->m_pWaitingSend)
+		memcpy(pBuffer->m_pBuffer->GetBuffer(), pDataPtr, nDataLen);
+		CAutoLock lk(&pContext->m_lock);
+		if (pContext->m_llPendingSends <= 0)
 		{
-			pContext->m_pWaitingSend = pBuffer;
+			DWORD dwError = 0;
+			pContext->m_llPendingSends++;
+			return PostSend(pContext, pBuffer, dwError);
 		}
 		else
 		{
-			CSocketBuffer* pTempBuffer = pContext->m_pWaitingSend;
-			while (pTempBuffer->m_pNext)
+			if (!pContext->m_pWaitingSend)
 			{
-				pTempBuffer = pTempBuffer->m_pNext;
+				pContext->m_pWaitingSend = pBuffer;
 			}
-			pTempBuffer->m_pNext = pBuffer;
+			else
+			{
+				CSocketBuffer* pTempBuffer = pContext->m_pWaitingSend;
+				while (pTempBuffer->m_pNext)
+				{
+					pTempBuffer = pTempBuffer->m_pNext;
+				}
+				pTempBuffer->m_pNext = pBuffer;
+			}
+			pContext->m_llPendingSends++;
 		}
-		pContext->m_llPendingSends++;
 	}
 #endif
 	return false;
@@ -663,70 +662,58 @@ void CIocpTcpServer::HandleIoAccept(DWORD dwKey, CSocketBuffer* pBuffer, DWORD d
 	CSocketContext* pContext = m_pSocketContextMgr->AllocateSocketContext(pBuffer->m_hSocket);
 	if (pContext)
 	{
-		/*添加连接数量限制*/
-		BOOL bRet = true;
-		if (bRet)
-		{
-			BYTE getAcceptExSockaddr[64];
-			ZeroMemory(&getAcceptExSockaddr, 64);
-			LPSOCKADDR lpLocalAddr = NULL;
-			LPSOCKADDR lpRemoteAddr = NULL;
-			int nLocalLen = sizeof(SOCKADDR_IN);
-			int nRemoteLen = sizeof(SOCKADDR_IN);
-			pListen->m_lpfnGetAcceptExSockaddrs(
-				&getAcceptExSockaddr,
-				/*不在Accept的时候接收来自新连接的第一份数据，同时这个地方会导致获取完成端口队列数据时均为0*/
-				/*pBuffer->m_nBufferLen - ((sizeof(SOCKADDR_IN) + 16) * 2)*/0,
-				sizeof(SOCKADDR_IN) + 16,
-				sizeof(SOCKADDR_IN) + 16,
-				(LPSOCKADDR*)& lpLocalAddr,
-				&nLocalLen,
-				(LPSOCKADDR*)& lpRemoteAddr,
-				&nRemoteLen
-			);
-			::memcpy(&pContext->m_local, lpLocalAddr, nLocalLen);
-			::memcpy(&pContext->m_remote, lpRemoteAddr, nRemoteLen);
+		/*BYTE getAcceptExSockaddr[64];
+		ZeroMemory(&getAcceptExSockaddr, 64);*/
+		LPSOCKADDR lpLocalAddr = NULL;
+		LPSOCKADDR lpRemoteAddr = NULL;
+		int nLocalLen = sizeof(SOCKADDR_IN);
+		int nRemoteLen = sizeof(SOCKADDR_IN);
+		pListen->m_lpfnGetAcceptExSockaddrs(
+			/*&getAcceptExSockaddr*/pBuffer->m_pBuffer->GetData(),
+			/*不在Accept的时候接收来自新连接的第一份数据，同时这个地方会导致获取完成端口队列数据时均为0*/
+			/*pBuffer->m_nBufferLen - ((sizeof(SOCKADDR_IN) + 16) * 2)*/0,
+			sizeof(SOCKADDR_IN) + 16,
+			sizeof(SOCKADDR_IN) + 16,
+			(LPSOCKADDR*)&lpLocalAddr,
+			&nLocalLen,
+			(LPSOCKADDR*)&lpRemoteAddr,
+			&nRemoteLen
+		);
 
-			// 使用AcceptEx之后，为了调用shutdown，需要设置套接字SO_UPDATE_ACCEPT_CONTEXT(https://docs.microsoft.com/en-us/windows/win32/api/mswsock/nf-mswsock-acceptex)
-			int nRet = 0;
-			nRet = setsockopt(pContext->m_hSocket, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char*)&pListen->m_hSocket, sizeof(pListen->m_hSocket));
-			if (nRet != 0)
+		memcpy(&pContext->m_local, lpLocalAddr, nLocalLen);
+		memcpy(&pContext->m_remote, lpRemoteAddr, nRemoteLen);
+
+		// 使用AcceptEx之后，为了调用shutdown，需要设置套接字SO_UPDATE_ACCEPT_CONTEXT(https://docs.microsoft.com/en-us/windows/win32/api/mswsock/nf-mswsock-acceptex)
+		int nRet = 0;
+		nRet = setsockopt(pContext->m_hSocket, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char*)&pListen->m_hSocket, sizeof(pListen->m_hSocket));
+		if (nRet != 0)
+		{
+			CloseClient(pContext->m_hSocket);
+			m_pSocketBufferMgr->ReleaseSocketBuffer(pBuffer);
+			pListen->NotifyRepostAccepts();
+			DWORD dwErrCode = ::WSAGetLastError();
+			myLogConsoleW("%s 套接字:%d设置SO_UPDATE_ACCEPT_CONTEXT选项失败 code:%d", __FUNCTION__, pContext->m_hSocket, (int)dwErrCode);
+			return;
+		}
+
+		/*将新建连接的套接字socket和完成端口绑定*/
+		::CreateIoCompletionPort((HANDLE)pContext->m_hSocket, m_hCompletionPort, (DWORD)pContext, 0);
+
+		/*为新连接投递一个Read请求，投递失败直接关闭连接*/
+		CSocketBuffer* pNewBuffer = m_pSocketBufferMgr->AllocateSocketBuffer(1024);
+		if (pNewBuffer)
+		{
+			DWORD dwError = 0;
+			if (!PostRecv(pContext, pNewBuffer, dwError))
 			{
 				CloseClient(pContext->m_hSocket);
-				m_pSocketBufferMgr->ReleaseSocketBuffer(pBuffer);
-				pListen->NotifyRepostAccepts();
-				DWORD dwErrCode = ::WSAGetLastError();
-				myLogConsoleW("%s 套接字:%d设置SO_UPDATE_ACCEPT_CONTEXT选项失败 code:%d", __FUNCTION__, pContext->m_hSocket, (int)dwErrCode);
-				return;
+				m_pSocketBufferMgr->ReleaseSocketBuffer(pNewBuffer);
+				myLogConsoleW("%s 新连接套接字%d投递Read请求失败，断开连接 code:%d", __FUNCTION__, pContext->m_hSocket, (int)dwError);
 			}
-
-			/*将新建连接的套接字socket和完成端口绑定*/
-			::CreateIoCompletionPort((HANDLE)pContext->m_hSocket, m_hCompletionPort, (DWORD)pContext, 0);
-
-			/*为新连接投递一个Read请求，投递失败直接关闭连接*/
-			CSocketBuffer* pNewBuffer = m_pSocketBufferMgr->AllocateSocketBuffer(1024);
-			if (pNewBuffer)
-			{
-				DWORD dwError = 0;
-				if (!PostRecv(pContext, pNewBuffer, dwError))
-				{
-					CloseClient(pContext->m_hSocket);
-					m_pSocketBufferMgr->ReleaseSocketBuffer(pNewBuffer);
-					myLogConsoleW("%s 新连接套接字%d投递Read请求失败，断开连接 code:%d", __FUNCTION__, pContext->m_hSocket, (int)dwError);
-				}
-			}
-		}
-		else
-		{
-			/*达到规定最多连接限制，关闭连接，释放其他相关资源*/
-			CloseClient(pContext->m_hSocket);
-			myLogConsoleW("%s 达到规定最多连接限制数%d，关闭连接", __FUNCTION__, 1000);
 		}
 	}
-
 	/*Accept I/O操作完成，释放pBuffer*/
 	m_pSocketBufferMgr->ReleaseSocketBuffer(pBuffer);
-
 	/*通知Accept线程中的m_hRepostHandle事件重新投递一个Accept操作*/
 	pListen->NotifyRepostAccepts();
 }
@@ -746,8 +733,8 @@ void CIocpTcpServer::HandleIoRead(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwT
 		}
 		else
 		{
-			CSocketBuffer* pNewBuffer = m_pSocketBufferMgr->AllocateSocketBuffer(1024);
 			DWORD dwError = 0;
+			CSocketBuffer* pNewBuffer = m_pSocketBufferMgr->AllocateSocketBuffer(1024);
 			if (!pNewBuffer || !PostRecv(pContext, pNewBuffer, dwError))
 			{
 				/*投递读事件失败，关闭连接*/
@@ -1193,7 +1180,7 @@ bool CIocpTcpClient::Create()
 	if (!InitializeIo()) {
 		return false;
 	}
-	if (!InitializeMembers()) {
+	if (!InitializeMembers(1)) {
 		return false;
 	}
 	if (!BeginThreadPool()) {

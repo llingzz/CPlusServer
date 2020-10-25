@@ -158,10 +158,11 @@
     <ClInclude Include="..\Core\util.h" />
     <ClInclude Include="DBConnection.h" />
     <ClInclude Include="DBServer.h" />
+    <ClInclude Include="IDBConnection.h" />
+    <ClInclude Include="OleDBConnection.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\Core\iocp.cpp" />
-    <ClCompile Include="DBConnection.cpp" />
     <ClCompile Include="DBServer.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

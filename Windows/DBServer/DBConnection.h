@@ -1,144 +1,262 @@
 ﻿#pragma
-#include <winsock2.h>
-#include <tchar.h>
 #include <my_global.h>
 #include <errmsg.h>
 #include <mysql.h>
-#include <iostream>
-#include <string>
-#include <map>
 #include <vector>
+#include <map>
+#include "log.h"
+#include "IDBConnection.h"
 
-#pragma comment(lib, "libmysql.lib")
-//run OleView.exe from the Visual Studio Command Prompt. File + View Typelib and navigate to msado15.dll.
-//You'll see the guid you need right at the top, the uuid() attribute on the library section
-//#import "libid:B691E011-1797-432E-907A-4D8C69339129" no_namespace rename("EOF","adoEOF") rename("BOF","adoBOF")
-#import "C:/Program Files/Common Files/System/ado/msado15.dll" no_namespace rename("EOF","adoEOF") rename("BOF","adoBOF")
-
-extern BOOL DB_SafeOpen(const std::string& strConnection, _ConnectionPtr& pConn);
-
-extern BOOL DB_SafeClose(_ConnectionPtr& pConn);
-
-extern UINT DB_BeginTrans(_ConnectionPtr& pConn, LONG& errcode, UINT& response);
-
-extern UINT DB_Commit(_ConnectionPtr& pConn, LONG& errcode, UINT& response);
-
-extern UINT DB_Rollback(_ConnectionPtr& pConn, LONG& errcode, UINT& response);
-
-class CMysqlField {
+class CDBConnection : public IDBConnection
+{
 public:
-	CMysqlField() {
-		ulLenght = 0;
-		strValue = "";
-		strFieldName = "";
-		enTypes = MYSQL_TYPE_LONG;
+	CDBConnection() {
+		m_strDBHost = "";
+		m_strUserName = "";
+		m_strPassword = "";
+		m_strDBName = "";
+		m_nPort = 0;
+		m_bState = false;
+		m_pMysql = NULL;
+		m_pMyRes = NULL;
+		m_nTotalRows = 0;
+		m_nTotalFields = 0;
+		m_nCurRowIdx = 0;
 	}
-	virtual ~CMysqlField() {
-		
-	}
-	int asInt() {
-		return atoi(strValue.c_str());
-	}
-	long asLong() {
-		return atol(strValue.c_str());
-	}
-	float asFloat() {
-		return atof(strValue.c_str());
-	}
-	long long asLonglong() {
-		return atoll(strValue.c_str());
-	}
-	std::string asString() {
-		return strValue;
-	}
-public:
-	enum_field_types enTypes;
-	std::string strFieldName;
-	std::string strValue;
-	unsigned long ulLenght;
-};
-
-class CMysqlRow {
-public:
-	CMysqlRow() {
+	~CDBConnection() {
 
 	}
-	virtual ~CMysqlRow() {
-
-	}
-public:
-	std::map<std::string, CMysqlField> fieldMap;
-};
-
-class CMysqlRecordset {
-public:
-	CMysqlRecordset() {
-
-	}
-	virtual ~CMysqlRecordset() {
-
-	}
-	bool IsEndOfFile() {
-		return iter == rowMap.end();
-	}
-	void MoveNext() {
-		iter++;
-	}
-	CMysqlField GetCollect(std::string strField) {
-		return iter->second.fieldMap[strField];
-	}
-public:
-	std::map<int, CMysqlRow>::iterator iter;
-	std::map<int, CMysqlRow> rowMap;
-};
-
-class CDBConnection {
-public:
-	CDBConnection();
-	virtual ~CDBConnection();
-
-public:
-	BOOL Init();
-	BOOL Uninit();
-	BOOL SetConnectParam(char const* szHost, char const* szUser, char const* szPwd, char const* szDb, int nPort, char const* szCharSet = "utf8");
-	BOOL Connect(char const* szHost, char const* szUser, char const* szPwd, char const* szDb, int nPort, char const* szCharSet = "utf8");
-	BOOL Connect();
-	BOOL Reconnect();
-	BOOL Ping();
-	BOOL Close();
-	BOOL BeginTrans();
-	BOOL Rollback();
-	BOOL Commits();
-	UINT GetError();
-	void Query(std::string strSql, CMysqlRecordset& recordSet);
-	void Execute(std::string strSql, int& nAffectRows);
-	void StmtExecute(std::string strSql, int& nAffectRows);
 
 private:
-	MYSQL* m_pMySql;
-	INT m_nPort;
-	UINT m_nErrno;
-	std::string m_strHost;
-	std::string m_strUser;
-	std::string m_strPwd;
-	std::string m_strDB;
-	std::string m_strError;
-	std::string m_strCharSet;
-};
-
-class CWorkerContext {
-public:
-	CWorkerContext() {
-		m_bReconnectMain = FALSE;
-		m_pConnectionMain = NULL;
-		m_pConnection = new CDBConnection;
-	}
-	virtual ~CWorkerContext() {
-
-	}
+	CDBConnection(const CDBConnection&) = delete;
+	CDBConnection& operator=(const CDBConnection&) = delete;
 
 public:
-	BOOL m_bReconnectMain;
-	_ConnectionPtr m_pConnectionMain;
-	CDBConnection* m_pConnection;
+	int Execute(const string& strSql) {
+		ClearRes();
+		if (strSql.length() <= 0) {
+			myLogConsoleE("%s sql字符串非法:%s", __FUNCTION__, strSql.c_str());
+			return 0;
+		}
+		if (m_pMysql == NULL) {
+			if (!ReConnect()) {
+				myLogConsoleE("%s 重连DB失败:%s", __FUNCTION__, strSql.c_str());
+				return 0;
+			}
+		}
+		int nRet = mysql_real_query(m_pMysql, strSql.c_str(), strSql.length());
+		if (nRet != 0) {
+			LogDBError();
+			myLogConsoleE("%s 执行sql失败:%s", __FUNCTION__, strSql.c_str());
+			return 0;
+		}
+		return (int)(mysql_affected_rows(m_pMysql));
+	}
+	int ExecQuery(const string& strSql) {
+		ClearRes();
+		if (strSql.length() < 1) {
+			return 0;
+		}
+		if (m_pMysql == NULL) {
+			if (!ReConnect()) {
+				myLogConsoleE("%s 重连DB失败:%s", __FUNCTION__, strSql.c_str());
+				return 0;
+			}
+		}
+		int nRet = mysql_real_query(m_pMysql, strSql.c_str(), strSql.length());
+		if (nRet != 0) {
+			LogDBError();
+			myLogConsoleE("%s 执行sql失败:%s", __FUNCTION__, strSql.c_str());
+			return 0;
+		}
+		m_pMyRes = mysql_store_result(m_pMysql);
+		m_nTotalFields = mysql_num_fields(m_pMyRes);
+		m_nTotalRows = static_cast<int>(mysql_affected_rows(m_pMysql));
+		GetQueryFields();
+		return m_nTotalRows;
+	}
+	int BeginTrans() {
+		std::string strQuery = "START TRANSACTION";
+		mysql_real_query(m_pMysql, strQuery.c_str(), (unsigned long)strQuery.size());
+		return 1;
+	}
+	int Commits() {
+		std::string strQuery = "COMMIT";
+		mysql_real_query(m_pMysql, strQuery.c_str(), (unsigned long)strQuery.size());
+		return 1;
+	}
+	int Rollback() {
+		std::string strQuery = "ROLLBACK";
+		mysql_real_query(m_pMysql, strQuery.c_str(), (unsigned long)strQuery.size());
+		return 1;
+	}
+	BOOL ConnectDB(const string& strDBHost, const string& strUserName, const string& strPassword, const string& strDBName, const int& nPort) {
+		InitMembers(strDBHost, strUserName, strPassword, strDBName, nPort);
+		m_pMysql = mysql_init(NULL);
+		if (m_pMysql == NULL) {
+			LogDBError();
+			myLogConsoleE("%s MY_SQL初始化失败,DB连接失败", __FUNCTION__);
+			return FALSE;
+		}
+		char value = 1;
+		mysql_options(m_pMysql, MYSQL_OPT_RECONNECT, &value);
+		mysql_options(m_pMysql, MYSQL_SET_CHARSET_NAME, "utf8");
+		bool bFlag = mysql_real_connect(m_pMysql, m_strDBHost.c_str(), m_strUserName.c_str(), m_strPassword.c_str(), m_strDBName.c_str(), m_nPort, NULL, CLIENT_MULTI_STATEMENTS);
+		if (!bFlag) {
+			LogDBError();
+			myLogConsoleE("%s DB连接失败", __FUNCTION__);
+			return FALSE;
+		}
+		m_bState = true;
+		return TRUE;
+	}
+	BOOL ReConnect() {
+		DisconnDB();
+		return ConnectDB(m_strDBHost, m_strUserName, m_strPassword, m_strDBName, m_nPort);
+	}
+	void DisconnDB() {
+		m_bState = false;
+		if (m_pMysql) {
+			mysql_close(m_pMysql);
+			m_pMysql = NULL;
+		}
+		if (m_pMyRes) {
+			m_pMyRes = NULL;
+		}
+	}
+	void GetFieldValue(const char* szFieldName, int& n32Data) {
+		auto iter = m_mapFieldsValue.find(szFieldName);
+		if (iter != m_mapFieldsValue.end()) {
+			n32Data = (int)atoi(iter->second.data());
+		}
+	}
+	void GetFieldValue(const char* szFieldName, unsigned int& un32Data) {
+		auto iter = m_mapFieldsValue.find(szFieldName);
+		if (iter != m_mapFieldsValue.end()) {
+			un32Data = (int)atoi(iter->second.data());
+		}
+	}
+	void GetFieldValue(const char* szFieldName, int64_t& n64Data) {
+		auto iter = m_mapFieldsValue.find(szFieldName);
+		if (iter != m_mapFieldsValue.end()) {
+			n64Data = _atoi64(iter->second.data());
+		}
+	}
+	void GetFieldValue(const char* szFieldName, uint64_t& un64Data) {
+		auto iter = m_mapFieldsValue.find(szFieldName);
+		if (iter != m_mapFieldsValue.end()) {
+			un64Data = _atoi64(iter->second.data());
+		}
+	}
+	void GetFieldValue(const char* szFieldName, char* szValue) {
+		auto iter = m_mapFieldsValue.find(szFieldName);
+		if (iter != m_mapFieldsValue.end()) {
+			strcpy(szValue, iter->second.data());
+		}
+	}
+	void GetFieldValue(const char* szFieldName, string& strValue) {
+		auto iter = m_mapFieldsValue.find(szFieldName);
+		if (iter != m_mapFieldsValue.end()) {
+			strValue = std::string(iter->second.data());
+		}
+	}
+	void GetQueryFields() {
+		m_vectFiled.clear();
+		m_mapFieldsValue.clear();
+		MYSQL_FIELD* pFiled = NULL;
+		MYSQL_ROW curRow = mysql_fetch_row(m_pMyRes);
+		if (!curRow) {
+			return;
+		}
+		int i = 0;
+		while (pFiled = mysql_fetch_field(m_pMyRes)) {
+			auto tempRes = curRow[i];
+			if (tempRes) {
+				string filedStr(pFiled->name, pFiled->name_length);
+				m_mapFieldsValue[filedStr] = tempRes;
+				m_vectFiled.push_back(filedStr);
+			}
+			++i;
+		}
+	}
+	void QueryNext() {
+		m_mapFieldsValue.clear();
+		MYSQL_ROW curRow = mysql_fetch_row(m_pMyRes);
+		if (!curRow) {
+			return;
+		}
+		m_nCurRowIdx++;
+		int size = m_vectFiled.size();
+		for (int i = 0; i < size; ++i) {
+			auto tempRes = curRow[i];
+			if (tempRes) {
+				m_mapFieldsValue[m_vectFiled[i]] = tempRes;
+			}
+		}
+	}
+	void QueryClose() {
+		m_nCurRowIdx = 0;
+		m_nTotalRows = 0;
+		m_mapFieldsValue.clear();
+	}
+	bool EndOfFile() {
+		return (m_nTotalRows <= 0) || ((m_nCurRowIdx + 1) > m_nTotalRows);
+	}
+
+private:
+	void LogDBError() {
+		m_uError = mysql_errno(m_pMysql);
+		m_strError = std::string(mysql_error(m_pMysql));
+		myLogConsoleE("errorCode:%u errorStr:%s", m_uError, m_strError.c_str());
+	}
+	void InitMembers(const string& strDBHost, const string& strUserName, const string& strPassword, const string& strDBName, const int& nPort) {
+		m_strDBHost = strDBHost;
+		m_strUserName = strUserName;
+		m_strPassword = strPassword;
+		m_strDBName = strDBName;
+		m_nPort = nPort;
+	}
+	void ClearRes() {
+		bool ifNeedQueryNext = (m_pMyRes != nullptr);
+		if (m_pMyRes) {
+			mysql_free_result(m_pMyRes);
+		}
+		if (ifNeedQueryNext) {
+			while (mysql_next_result(m_pMysql) == 0) {
+				m_pMyRes = mysql_store_result(m_pMysql);
+				if (m_pMyRes) {
+					mysql_free_result(m_pMyRes);
+				}
+			}
+		}
+		else {
+			do {
+				m_pMyRes = mysql_store_result(m_pMysql);
+				if (m_pMyRes) {
+					mysql_free_result(m_pMyRes);
+				}
+			} while (mysql_next_result(m_pMysql) == 0);
+		}
+		m_pMyRes = NULL;
+	}
+
+private:
+	MYSQL*									m_pMysql;
+	MYSQL_RES*								m_pMyRes;
+
+	int										m_nPort;
+	int										m_nTotalRows;
+	int										m_nTotalFields;
+	int										m_nCurRowIdx;
+
+	bool									m_bState;
+	unsigned int							m_uError;
+
+	std::string								m_strError;
+	std::string								m_strDBHost;
+	std::string								m_strUserName;
+	std::string								m_strPassword;
+	std::string								m_strDBName;
+	std::vector<std::string>				m_vectFiled;
+	std::map<std::string, std::string>		m_mapFieldsValue;
 };

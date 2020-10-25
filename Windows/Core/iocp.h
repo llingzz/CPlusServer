@@ -287,7 +287,7 @@ class CSocketContextMgr;
 class CSocketContext {
 public:
 	SOCKET						m_hSocket;
-	LONG						m_lToken;
+	ULONG						m_lToken;
 	BOOL						m_bClosing;
 
 	SOCKADDR_IN					m_local;
@@ -315,7 +315,7 @@ public:
 	CSocketContext()
 	{
 		m_hSocket = INVALID_SOCKET;
-		m_lToken = 0;
+		m_lToken = 0L;
 		m_bClosing = FALSE;
 		ZeroMemory(&m_local, sizeof(m_local));
 		ZeroMemory(&m_remote, sizeof(m_remote));
@@ -335,7 +335,7 @@ public:
 	virtual ~CSocketContext()
 	{
 		m_hSocket = INVALID_SOCKET;
-		m_lToken = 0;
+		m_lToken = 0L;
 		m_bClosing = FALSE;
 		ZeroMemory(&m_local, sizeof(m_local));
 		ZeroMemory(&m_remote, sizeof(m_remote));
@@ -448,7 +448,8 @@ class CSocketContextMgr {
 public:
 	CSocketContextMgr()
 	{
-		m_lConnected = 0L;
+		m_lNextTokenID = 0L;
+		m_lMaxConnections = 0L;
 		m_pSocketContextList = nullptr;
 		m_pListenContext = nullptr;
 		m_pBufManager = nullptr;
@@ -462,13 +463,20 @@ public:
 public:
 	CSocketContext* AllocateSocketContext(SOCKET hSocket)
 	{
+		CSocketContext* pContext = nullptr;
 		if (INVALID_SOCKET == hSocket)
 		{
-			return nullptr;
+			myLogConsoleE("%s 参数错误(INVALID_SOCKET == hSocket)", __FUNCTION__);
+			return pContext;
 		}
-		CSocketContext* pContext = nullptr;
 
 		CAutoLock lock(&m_lock);
+		ULONG lToken = CreateTokenID();
+		if (ULONG_MAX == lToken)
+		{
+			myLogConsoleW("%s 达到规定最多连接限制数%ld 当前连接数量%d", __FUNCTION__, m_lMaxConnections, m_mapConnection.size());
+			return pContext;
+		}
 		if (m_pSocketContextList)
 		{
 			pContext = m_pSocketContextList;
@@ -478,16 +486,15 @@ public:
 		else
 		{
 			pContext = new CSocketContext;
-			pContext->m_lToken = m_lConnected++;
+			pContext->m_pCtxManager = this;
+			pContext->m_pBufManager = m_pBufManager;
+			pContext->m_pAllocator = m_pAllocator;
 		}
-
 		if (pContext)
 		{
 			pContext->m_bClosing = FALSE;
 			pContext->m_hSocket = hSocket;
-			pContext->m_pCtxManager = this;
-			pContext->m_pBufManager = m_pBufManager;
-			pContext->m_pAllocator = m_pAllocator;
+			pContext->m_lToken = lToken;
 			m_mapConnection.insert(std::make_pair(hSocket, pContext));
 		}
 		else
@@ -498,14 +505,12 @@ public:
 	}
 	void ReleaseSocketContext(CSocketContext* pContext)
 	{
+		CAutoLock lock(&m_lock);
 		if (!pContext)
 		{
+			myLogConsoleE("%s 参数错误(NULL == pContext)", __FUNCTION__);
 			return;
 		}
-
-		SOCKET hSocket = pContext->m_hSocket;
-		SAFE_RELEASE_SOCKET(pContext->m_hSocket);
-		pContext->m_lToken = 0;
 		ZeroMemory(&pContext->m_local, sizeof(pContext->m_local));
 		ZeroMemory(&pContext->m_remote, sizeof(pContext->m_remote));
 		ZeroMemory(&pContext->m_recvDataBuff, 8192);
@@ -515,24 +520,15 @@ public:
 		pContext->m_llCurrSerialNo = 0;
 		pContext->m_llNextSerialNo = 0;
 		pContext->m_llPendingSends = 0;
-		pContext->m_pNext = nullptr;
-		pContext->m_pCtxManager = nullptr;
-		pContext->m_pBufManager = nullptr;
-		pContext->m_pAllocator = nullptr;
-
-		CAutoLock lock(&m_lock);
 		pContext->m_pNext = m_pSocketContextList;
 		m_pSocketContextList = pContext;
-		auto iter1 = m_mapPendingCloses.find(hSocket);
-		if (iter1 != m_mapPendingCloses.end())
+		if (m_mapConnection.find(pContext->m_hSocket) != m_mapConnection.end())
 		{
-			m_mapPendingCloses.erase(iter1);
+			m_mapConnection.erase(pContext->m_hSocket);
 		}
-		auto iter2 = m_mapConnection.find(hSocket);
-		if (iter2 != m_mapConnection.end())
-		{
-			m_mapConnection.erase(iter2);
-		}
+		m_listFreeTokens.emplace_back(pContext->m_lToken);
+		pContext->m_lToken = 0L;
+		SAFE_RELEASE_SOCKET(pContext->m_hSocket);
 	}
 	void FreeSocketContext()
 	{
@@ -547,6 +543,7 @@ public:
 		}
 		m_pSocketContextList = nullptr;
 		m_mapConnection.clear();
+		m_listFreeTokens.clear();
 	}
 	void InsertPendingCloses(CSocketContext* pContext)
 	{
@@ -590,14 +587,15 @@ public:
 		}
 	}
 
-	bool Init(CDataBufferMgr* pAllocator, CSocketBufferMgr* pBufManager)
+	bool Init(CDataBufferMgr* pAllocator, CSocketBufferMgr* pBufManager, ULONG nMaxConnections)
 	{
 		m_pListenContext = new CSocketListenContext;
 		if (!m_pListenContext || !m_pListenContext->Init())
 		{
+			myLogConsoleE("%s CSocketContextMgr初始化失败", __FUNCTION__);
 			return false;
 		}
-
+		m_lMaxConnections = nMaxConnections;
 		m_pAllocator = pAllocator;
 		m_pBufManager = pBufManager;
 		return true;
@@ -642,11 +640,29 @@ public:
 	}
 
 private:
+	ULONG CreateTokenID()
+	{
+		ULONG lToken = ULONG_MAX;
+		if (m_lNextTokenID < m_lMaxConnections)
+		{
+			lToken = m_lNextTokenID++;
+		}
+		else if (!m_listFreeTokens.empty())
+		{
+			lToken = m_listFreeTokens.front();
+			m_listFreeTokens.pop_front();
+		}
+		return lToken;
+	}
+
+private:
 	CSocketContextMgr(const CSocketContextMgr&) = delete;
 	CSocketContextMgr& operator=(const CSocketContextMgr&) = delete;
 
 private:
-	LONG								m_lConnected;
+	ULONG								m_lNextTokenID;
+	ULONG								m_lMaxConnections;
+	std::list<ULONG>					m_listFreeTokens;
 	std::map<SOCKET, CSocketContext*>	m_mapConnection;
 	std::map<SOCKET, ULONGLONG>			m_mapPendingCloses;
 	CSocketContext*						m_pSocketContextList;
@@ -682,7 +698,7 @@ public:
 	CIocpTcpServer(DWORD dwFlag);
 	virtual ~CIocpTcpServer();
 
-	virtual bool InitializeMembers();
+	virtual bool InitializeMembers(UINT nMaxConnections);
 	virtual bool BeginBindListen(const char* lpSzIp, UINT nPort, UINT nInitAccepts, UINT nMaxAccpets);
 	virtual bool BeginThreadPool(UINT nThreads = 0);
 	virtual bool InitializeIo();

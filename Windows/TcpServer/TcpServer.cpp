@@ -33,13 +33,13 @@ int main()
 		return 0;
 	}
 	std::string str1 = "helloworld!";
-	//std::string str2 = "helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!ssssssssssssss!helloworld!";
-	//std::string str3 = "abcdefg";
+	std::string str2 = "helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!ssssssssssssss!helloworld!";
+	std::string str3 = "abcdefg";
 	pClient->SendData(str1.c_str(), str1.size());
-	//pClient->SendData(str1.c_str(), str1.size());
-	//pClient->SendData(str1.c_str(), str1.size());
-	//pClient->SendData(str1.c_str(), str1.size());
-	//pClient->SendData(str3.c_str(), str3.size());
+	pClient->SendData(str2.c_str(), str2.size());
+	pClient->SendData(str3.c_str(), str3.size());
+	pClient->SendData(str1.c_str(), str1.size());
+	pClient->SendData(str3.c_str(), str3.size());
 	Sleep(5000);
 	pClient->DisconnectServer();
 	Sleep(5000);
@@ -50,6 +50,7 @@ int main()
 		pClient->SendData(str1.c_str(), str1.size());
 	}
 	char c = getchar();
+	pClient->Destroy();
 #endif
 	return 0;
 }
