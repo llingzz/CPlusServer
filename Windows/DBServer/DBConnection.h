@@ -151,7 +151,7 @@ public:
 	void GetFieldValue(const char* szFieldName, char* szValue) {
 		auto iter = m_mapFieldsValue.find(szFieldName);
 		if (iter != m_mapFieldsValue.end()) {
-			strcpy(szValue, iter->second.data());
+			memcpy(szValue, iter->second.data(), iter->second.length());
 		}
 	}
 	void GetFieldValue(const char* szFieldName, string& strValue) {

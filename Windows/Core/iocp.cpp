@@ -665,7 +665,7 @@ void CIocpTcpServer::HandleIoAccept(DWORD dwKey, CSocketBuffer* pBuffer, DWORD d
 		int nLocalLen = sizeof(SOCKADDR_IN);
 		int nRemoteLen = sizeof(SOCKADDR_IN);
 		pListen->m_lpfnGetAcceptExSockaddrs(
-			/*&getAcceptExSockaddr*/pBuffer->m_pBuffer->GetData(),
+			pBuffer->m_pBuffer->GetData(),
 			/*不在Accept的时候接收来自新连接的第一份数据，同时这个地方会导致获取完成端口队列数据时均为0*/
 			/*pBuffer->m_nBufferLen - ((sizeof(SOCKADDR_IN) + 16) * 2)*/0,
 			sizeof(SOCKADDR_IN) + 16,

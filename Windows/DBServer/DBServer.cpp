@@ -16,9 +16,39 @@ void* CDBServer::OnWorkerStart()
 		myLogConsoleE("%s ¿ÕÖ¸ÕëÒì³£", __FUNCTION__);
 		return NULL;
 	}
-	pContext->m_pConnection->ConnectDB("47.100.196.145", "root", "8767626LUOLING", "mysql", 3306);
+
+	TCHAR szFilePath[MAX_PATH];
+	GetModuleFileName(GetModuleHandle(NULL), szFilePath, MAX_PATH - 1);
+	std::string strFilePath = TCHAR2CHAR(szFilePath);
+	const char* ptr = strrchr(strFilePath.c_str(), '\\');
+	size_t nIndex = strFilePath.find(ptr);
+	string strRes = strFilePath.substr(0, nIndex);
+	strRes.append(std::string("\\DBServer.ini"));
+
+	TCHAR wszFile[MAX_PATH];
+	CHAR2TCHAR(wszFile, strRes.c_str());
+
+	TCHAR wszIp[24] = { 0 };
+	GetPrivateProfileString(_T("DB"), _T("ip"), _T(""), wszIp, 24, wszFile);
+	int nPort = 3306;
+	nPort = GetPrivateProfileInt(_T("DB"), _T("port"), 3306, wszFile);
+	TCHAR wszUsr[24] = { 0 };
+	GetPrivateProfileString(_T("DB"), _T("usr"), _T("root"), wszUsr, 24, wszFile);
+	TCHAR wszPwd[24] = { 0 };
+	GetPrivateProfileString(_T("DB"), _T("pwd"), _T(""), wszPwd, 24, wszFile);
+	TCHAR wszDB[24] = { 0 };
+	GetPrivateProfileString(_T("DB"), _T("db"), _T(""), wszDB, 24, wszFile);
+
+	std::string strIp = TCHAR2CHAR(wszIp);
+	std::string strUsr = TCHAR2CHAR(wszUsr);
+	std::string strPwd = TCHAR2CHAR(wszPwd);
+	std::string strDB = TCHAR2CHAR(wszDB);
+
+	pContext->m_pConnection->ConnectDB(strIp, strUsr, strPwd, strDB, nPort);
+
 	//DB_TestNormal(pContext);
 	//DB_TestTrans(pContext);
+
 	return pContext;
 }
 

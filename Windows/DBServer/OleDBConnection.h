@@ -125,7 +125,8 @@ public:
 	void GetFieldValue(const char* szFieldName, char* szValue) {
 		_variant_t vTemp = m_pRecord->GetCollect(szFieldName);
 		if (vTemp.bstrVal != NULL) {
-			strcpy(szValue, _com_util::ConvertBSTRToString(vTemp.bstrVal));
+			char* szVal = _com_util::ConvertBSTRToString(vTemp.bstrVal);
+			memcpy(szValue, szVal, strlen(szVal));
 		}
 	}
 	void GetFieldValue(const char* szFieldName, string& strValue) {
