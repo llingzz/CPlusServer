@@ -92,7 +92,7 @@ public:
 	WSAOVERLAPPED		m_ol;
 	SOCKET				m_hSocket;
 	IoType				m_ioType;
-	 LONGLONG			m_llSerialNo;
+	LONGLONG			m_llSerialNo;
 	IDataBuffer*		m_pBuffer;
 	CSocketBuffer*		m_pNext;
 
@@ -250,7 +250,7 @@ public:
 			int nTimesLen = sizeof(int);
 
 			// 获取socket连接建立时长，时间长的话直接断开
-			::getsockopt(pBuffer->m_hSocket, SOL_SOCKET, SO_CONNECT_TIME, (char*)&nTimes, &nTimesLen);
+			::getsockopt(pBuffer->m_hSocket, SOL_SOCKET, SO_CONNECT_TIME, (char*)& nTimes, &nTimesLen);
 			if (-1 != nTimes && nTimes > 2)
 			{
 				SAFE_RELEASE_SOCKET(pBuffer->m_hSocket);
@@ -288,9 +288,7 @@ class CSocketContext {
 public:
 	SOCKET						m_hSocket;
 	ULONG						m_lToken;
-	UINT						m_nFlag;
 	BOOL						m_bClosing;
-	BOOL						m_bDelayClose;
 
 	SOCKADDR_IN					m_local;
 	SOCKADDR_IN					m_remote;
@@ -318,9 +316,7 @@ public:
 	{
 		m_hSocket = INVALID_SOCKET;
 		m_lToken = 0L;
-		m_nFlag = 0;
 		m_bClosing = FALSE;
-		m_bDelayClose = FALSE;
 		ZeroMemory(&m_local, sizeof(m_local));
 		ZeroMemory(&m_remote, sizeof(m_remote));
 		ZeroMemory(&m_recvDataBuff, 8192);
@@ -340,9 +336,7 @@ public:
 	{
 		m_hSocket = INVALID_SOCKET;
 		m_lToken = 0L;
-		m_nFlag = 0;
 		m_bClosing = FALSE;
-		m_bDelayClose = FALSE;
 		ZeroMemory(&m_local, sizeof(m_local));
 		ZeroMemory(&m_remote, sizeof(m_remote));
 		ZeroMemory(&m_recvDataBuff, 8192);
@@ -427,14 +421,14 @@ public:
 
 		DWORD bytes = 0;
 		GUID guid = WSAID_ACCEPTEX;
-		::WSAIoctl(m_hSocket, SIO_GET_EXTENSION_FUNCTION_POINTER, (LPVOID)&guid, sizeof(guid), &(m_lpfnAcceptEx), sizeof(m_lpfnAcceptEx), &bytes, NULL, NULL);
+		::WSAIoctl(m_hSocket, SIO_GET_EXTENSION_FUNCTION_POINTER, (LPVOID)& guid, sizeof(guid), &(m_lpfnAcceptEx), sizeof(m_lpfnAcceptEx), &bytes, NULL, NULL);
 		if (!m_lpfnAcceptEx)
 		{
 			myLogConsoleE("%s m_lpfnAcceptEx为nullptr!!!", __FUNCTION__, m_hSocket);
 			return false;
 		}
 		guid = WSAID_GETACCEPTEXSOCKADDRS;
-		::WSAIoctl(m_hSocket, SIO_GET_EXTENSION_FUNCTION_POINTER, (LPVOID)&guid, sizeof(guid), &(m_lpfnGetAcceptExSockaddrs), sizeof(m_lpfnGetAcceptExSockaddrs), &bytes, NULL, NULL);
+		::WSAIoctl(m_hSocket, SIO_GET_EXTENSION_FUNCTION_POINTER, (LPVOID)& guid, sizeof(guid), &(m_lpfnGetAcceptExSockaddrs), sizeof(m_lpfnGetAcceptExSockaddrs), &bytes, NULL, NULL);
 		if (!m_lpfnGetAcceptExSockaddrs)
 		{
 			myLogConsoleE("%s m_lpfnGetAcceptExSockaddrs为nullptr!!!", __FUNCTION__, m_hSocket);
@@ -448,7 +442,6 @@ public:
 		::InterlockedIncrement(&m_nRepostCount);
 		::SetEvent(m_hRepostHandle);
 	}
-	
 };
 class CSocketContextMgr {
 public:
@@ -467,7 +460,7 @@ public:
 	}
 
 public:
-	CSocketContext* AllocateSocketContext(SOCKET hSocket, UINT nIndex = 0)
+	CSocketContext* AllocateSocketContext(SOCKET hSocket)
 	{
 		CSocketContext* pContext = nullptr;
 		if (INVALID_SOCKET == hSocket)
@@ -501,11 +494,6 @@ public:
 			pContext->m_bClosing = FALSE;
 			pContext->m_hSocket = hSocket;
 			pContext->m_lToken = lToken;
-			pContext->m_nFlag = nIndex;
-			if (nIndex > 0)
-			{
-				m_mapServer.insert(std::make_pair(nIndex, pContext->m_hSocket));
-			}
 			m_mapConnection.insert(std::make_pair(hSocket, pContext));
 		}
 		else
@@ -537,11 +525,6 @@ public:
 		{
 			m_mapConnection.erase(pContext->m_hSocket);
 		}
-		if (m_mapServer.find(pContext->m_nFlag) != m_mapServer.end())
-		{
-			m_mapServer.erase(pContext->m_nFlag);
-		}
-		pContext->m_nFlag = 0;
 		m_listFreeTokens.emplace_back(pContext->m_lToken);
 		pContext->m_lToken = 0L;
 		SAFE_RELEASE_SOCKET(pContext->m_hSocket);
@@ -631,16 +614,16 @@ public:
 	{
 		return m_pListenContext;
 	}
-	SOCKET GetSocket(UINT nIndex)
+	SOCKET GetRemoteSocket()
 	{
-		CSocketContext* pContext = nullptr;
+		SOCKET hSocket = INVALID_SOCKET;
 		CAutoLock lock(&m_lock);
-		auto iter = m_mapServer.find(nIndex);
-		if (iter != m_mapServer.end())
+		auto first = m_mapConnection.begin();
+		if (first != m_mapConnection.end())
 		{
-			return iter->second;
+			hSocket = first->first;
 		}
-		return INVALID_SOCKET;
+		return hSocket;
 	}
 	SOCKET GetListenSocket()
 	{
@@ -653,13 +636,6 @@ public:
 	HANDLE GetRepostHandle()
 	{
 		return m_pListenContext->m_hRepostHandle;
-	}
-	void GetSockets(std::map<UINT, SOCKET>& mapServer)
-	{
-		CAutoLock lock(&m_lock);
-		for (auto& iter : m_mapServer) {
-			mapServer.insert(std::make_pair(iter.first, iter.second));
-		}
 	}
 
 private:
@@ -686,9 +662,8 @@ private:
 	ULONG								m_lNextTokenID;
 	ULONG								m_lMaxConnections;
 	std::list<ULONG>					m_listFreeTokens;
-	std::map<UINT, SOCKET>				m_mapServer;
-	std::map<SOCKET, ULONGLONG>			m_mapPendingCloses;
 	std::map<SOCKET, CSocketContext*>	m_mapConnection;
+	std::map<SOCKET, ULONGLONG>			m_mapPendingCloses;
 	CSocketContext*						m_pSocketContextList;
 	CSocketListenContext*				m_pListenContext;
 	CSocketBufferMgr*					m_pBufManager;
@@ -734,7 +709,6 @@ public:
 	virtual bool PostRecv(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
 	virtual bool PostSend(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
 	virtual bool PostConn(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
-	virtual bool PostClose(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
 
 	virtual bool CloseClient(SOCKET hSocket);
 	virtual bool SendData(SOCKET hSocket, const void* pDataPtr, int nDataLen);
@@ -803,12 +777,11 @@ private:
 public:
 	virtual bool Create();
 	virtual bool BeginThreadPool(UINT nThreads = 0);
-	virtual bool ConnectOneServer(const std::string strIp, const int nPort, const UINT& nIndex);
-	virtual bool BeginConnect(const std::string& strIp, const int& nPort, const UINT& nIndex);
-	virtual bool DisconnectServer(const UINT& nIndex);
+	virtual bool ConnectOneServer(const std::string strIp, const int nPort);
+	virtual bool BeginConnect(const std::string& strIp, const int& nPort);
+	virtual bool DisconnectServer();
 	virtual bool Destroy();
 
-	virtual bool SendCast(const void* pDataPtr, const int& nDataLen);
-	virtual bool SendOneServer(const UINT& nIndex, const void* pDataPtr, const int& nDataLen);
+	virtual bool SendData(const void* pDataPtr, const int& nDataLen);
 	virtual void OnRequest(void* p1, void* p2);
 };

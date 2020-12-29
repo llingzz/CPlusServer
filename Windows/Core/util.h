@@ -15,5 +15,5 @@ static std::string TCHAR2CHAR(TCHAR* pT)
 static void CHAR2TCHAR(TCHAR* pT, const char* p)
 {
 	int wnLen = MultiByteToWideChar(CP_ACP, NULL, p, strlen(p), NULL, 0);
-	MultiByteToWideChar(CP_ACP, 0, p, strlen(p) + 1, (LPWSTR)pT, wnLen + 1);
+	MultiByteToWideChar(CP_ACP, 0, p, strlen(p) + 1, pT, wnLen + 1);
 }

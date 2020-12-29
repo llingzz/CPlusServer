@@ -30,7 +30,7 @@ public:
 		return m_strMethod;
 	}
 	void setHeader(std::string strHeader) {
-		
+
 	}
 	void setParams(std::string strParams) {
 
