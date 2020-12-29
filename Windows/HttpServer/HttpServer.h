@@ -131,7 +131,7 @@ public:
 		}
 		std::string strDBSvrIp = "127.0.0.1";
 		int nDBSvrPort = 8888;
-		if (!m_pDBClient->BeginConnect(strDBSvrIp, nDBSvrPort)) {
+		if (!m_pDBClient->BeginConnect(strDBSvrIp, nDBSvrPort, 1)) {
 			return false;
 		}*/
 		return bRet;
@@ -210,7 +210,7 @@ private:
 		objBuffer.Write((PBYTE)&req, sizeof(NetRequest));
 		objBuffer.Write((PBYTE)&head, sizeof(ContextHead));
 		objBuffer.Write((PBYTE)&nUserId, sizeof(nUserId));
-		m_pDBClient->SendData(objBuffer.GetBuffer(), objBuffer.GetBufferLen());
+		//m_pDBClient->SendOneServer(1, objBuffer.GetBuffer(), objBuffer.GetBufferLen());
 	}
 	void registeGetCallback(std::string strMethod, Handler handler) {
 		m_mapGetIterfaces.insert(std::make_pair(strMethod, handler));
