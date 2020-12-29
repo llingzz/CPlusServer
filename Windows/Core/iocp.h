@@ -86,6 +86,20 @@ private:
 	CSocketContext* m_pContext;
 	IDataBuffer* m_pDataBuffer;
 };
+struct ContextHead {
+	SOCKET hSocket;
+	ULONG lToken;
+};
+struct RequestHead {
+	int nRepeated;
+	int nRequest;
+	int nSubRequest;
+};
+struct NetRequest {
+	RequestHead head;
+	int nDataLen;
+	void* pData;
+};
 
 class CSocketBuffer {
 public:
@@ -573,7 +587,7 @@ public:
 	{
 		ULONGLONG tick = GetTickCount64();
 		CAutoLock lock(&m_lockClose);
-		for (auto iter = m_mapPendingCloses.begin(); iter != m_mapPendingCloses.end(); iter++)
+		for (auto iter = m_mapPendingCloses.begin(); iter != m_mapPendingCloses.end();)
 		{
 			auto pContext = GetCtx(iter->first);
 			if (pContext)
@@ -581,8 +595,16 @@ public:
 				if ((tick - iter->second) > 5000 && pContext->GetPendingRecvs() <= 1)
 				{
 					ReleaseSocketContext(pContext);
-					m_mapPendingCloses.erase(iter);
+					m_mapPendingCloses.erase(iter++);
 				}
+				else
+				{
+					iter++;
+				}
+			}
+			else
+			{
+				iter++;
 			}
 		}
 	}
@@ -715,6 +737,7 @@ public:
 	virtual bool SendData(SOCKET hSocket, const void* pDataPtr, int nDataLen);
 	virtual bool SendData(CSocketContext* pContext, const void* pDataPtr, int nDataLen);
 	virtual bool SendPbData(CSocketContext* pContext, const google::protobuf::Message& pdata);
+	virtual bool SendRequest(SOCKET hSocket, ContextHead* pContextHead, NetRequest* pRequest);
 
 	virtual void HandleIo(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwTrans, DWORD dwError);
 	virtual void HandleIoDefault(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwTrans, DWORD dwError);
@@ -784,5 +807,6 @@ public:
 	virtual bool Destroy();
 
 	virtual bool SendData(const void* pDataPtr, const int& nDataLen);
+	virtual bool SendRequest(SOCKET hSocket, ContextHead* pContextHead, NetRequest* pRequest);
 	virtual void OnRequest(void* p1, void* p2);
 };

@@ -566,59 +566,31 @@ bool CIocpTcpServer::SendPbData(CSocketContext* pContext, const google::protobuf
 	return SendData(pContext, szBuff, pdata.GetCachedSize());
 }
 
+bool CIocpTcpServer::SendRequest(SOCKET hSocket, ContextHead* pContextHead, NetRequest* pRequest)
+{
+	CBuffer objBuffer;
+	objBuffer.Write((PBYTE)pContextHead, sizeof(ContextHead));
+	objBuffer.Write((PBYTE)pRequest, sizeof(NetRequest));
+	objBuffer.Write((PBYTE)pRequest->pData, pRequest->nDataLen);
+	return SendData(hSocket, objBuffer.GetBuffer(), objBuffer.GetBufferLen());
+}
+
 void CIocpTcpServer::HandleIo(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwTrans, DWORD dwError)
 {
 	CSocketContext* pContext = (CSocketContext*)dwKey;
 	if (!pContext)
 	{
-		if (NO_ERROR != dwError)
+		/*新套接字连接建立时，dwKey = 0 dwTrans = 0 dwError = 0，此时pContext会为NULL，更新待处理的连接链表*/
+		CSocketListenContext* pListen = m_pSocketContextMgr->GetListenCtx();
+		if (IoType::enIoAccept == pBuffer->m_ioType && pListen)
 		{
-			if (IoType::enIoAccept != pBuffer->m_ioType)
-			{
-				/*套接字发生错误，断开连接，释放相关资源*/
-				myLogConsoleW("%s 套接字%d发生错误", __FUNCTION__, pBuffer->m_hSocket);
-			}
-			else
-			{
-				/*监听的套接字上发生错误，服务端主动关闭监听的该socket套接字*/
-				CloseClient(pBuffer->m_hSocket);
-				myLogConsoleW("%s 监听的套接字%d发生错误", __FUNCTION__, pBuffer->m_hSocket);
-			}
+			HandleIoAccept(dwKey, pBuffer, dwTrans, dwError);
+			m_pSocketBufferMgr->RemovePendingAccepts(pBuffer);
+		}
+		else
+		{
 			m_pSocketBufferMgr->ReleaseSocketBuffer(pBuffer);
 		}
-		else
-		{
-			/*新套接字连接建立时，dwKey = 0 dwTrans = 0 dwError = 0，此时pContext会为NULL，更新待处理的连接链表*/
-			CSocketListenContext* pListen = m_pSocketContextMgr->GetListenCtx();
-			if (IoType::enIoAccept == pBuffer->m_ioType && pListen)
-			{
-				HandleIoAccept(dwKey, pBuffer, dwTrans, dwError);
-				m_pSocketBufferMgr->RemovePendingAccepts(pBuffer);
-			}
-			else
-			{
-				m_pSocketBufferMgr->ReleaseSocketBuffer(pBuffer);
-			}
-		}
-		return;
-	}
-
-	/*检查该套接字上的错误*/
-	if (NO_ERROR != dwError)
-	{
-		if (IoType::enIoAccept != pBuffer->m_ioType)
-		{
-			/*套接字发生错误，断开连接，释放相关资源*/
-			CloseClient(pContext->m_hSocket);
-			myLogConsoleW("%s 套接字%d发生错误", __FUNCTION__, pContext->m_hSocket);
-		}
-		else
-		{
-			/*监听的套接字上发生错误，服务端主动关闭监听的该socket套接字*/
-			CloseClient(pBuffer->m_hSocket);
-			myLogConsoleW("%s 监听套接字%d发生错误", __FUNCTION__, pContext->m_hSocket);
-		}
-		m_pSocketBufferMgr->ReleaseSocketBuffer(pBuffer);
 		return;
 	}
 
@@ -902,23 +874,30 @@ void CIocpTcpServer::OnDataHandle(CSocketContext* pContext, IDataBuffer* pBuffer
 
 void CIocpTcpServer::DispatchData(NetPacket* pNP)
 {
-	OnRequest((void*)pNP, GetWorkerContext());
+	NetRequest request = { 0 };
+	if (m_nFlag & CPS_FLAG_MSG_HEAD) {
+		NetRequest* pRequest = (NetRequest*)pNP->GetData();
+		memcpy(&request, pRequest, sizeof(NetRequest));
+		request.nDataLen = pNP->GetDataLen() - sizeof(NetRequest);
+		request.pData = (PBYTE)pNP->GetData() + sizeof(NetRequest);
+	}
+	else if(m_nFlag & CPS_FLAG_DEFAULT) {
+		request.nDataLen = pNP->GetDataLen();
+		request.pData = (void*)pNP->GetData();
+	}
+	CSocketContext* pContext = pNP->GetCtx();
+	OnRequest((void*)pContext, (void*)&request);
 	pNP->Release();
 }
 
 void CIocpTcpServer::OnRequest(void* p1, void* p2)
 {
-	NetPacket* pNP = (NetPacket*)p1;
-	myLogConsoleI("recv:[%s]", (char*)pNP->GetData());
-	//std::string str = "Slow,Normal,Fast,SlowScore,FastScore,Multi,Calculate,TimeLineCycle,RandomFish,DropItem,RookieFix,DraAttack,BoardC,BoardW,Together,RemoveA,RemoveB,BagNums,GiveVlimit,MailVal,MailNums,MailInterval,WorldInterval,WnLimit,RoomInterval,UpdateSilver,SpeventTime,RemoveC,RegSilver,BonusPer,SpeventTime2,QuestMaxnum,QuestChange,NormalFix,BreakFix,ChargeFix,FirstSkill,Refresh,RefreshNum,MuseumPerlimit,TreasureVip,MistLimit,LjPieces,Basiladd,TideTime,BRNN20,NewFix,NewReliefSilver,NewReliefTimes,NewReliefLimit,GuideLottery,SvrStopNotice,TimeLineCycle1,RandomFish1,QuickOpen,ScoreBoardLimit,CHZZ100,BonusPerMax,BonusPerMin,GoldPerMax,GoldPerMin,BonusPerMaxModify,BonusPerMinModify,GoldPerMaxModify,GoldPerMinModify,NewerStockNum,NewerStockExp,3000,350,1000,1600,200,2000,3000,693000,688000,15000,1.06|100|30,200000,15|15,1|9,8|13,40,110,15,2,30,100,600000,10000,5,1500,10000,7000,15,150,40,2000,3,3,1.015|100|300,1.03|100|5,0.01|100|5,1.0|1.0|1.0|1.0|1.0|1.0|1.0|1.0|1.0,0|6|12|18,30,8,2,1000,200,10,10,0,1.045|1.03|1.015,5000,3,0,10000,服务器正在维护中，预计维护时间为2小时，请在维护完毕后重新登录 。,86400000,86395000,5,5000000,0,60,50,11,9,30,15,6,4,100000,18750,";
-	std::string str = "helloworld!!!!!!!";
-	/*int nSize = pNP->GetBuffer()->GetDataLen();
-	CBuffer buffer;
-	buffer.Write(PBYTE(&nSize), sizeof(int));
-	buffer.Write(pNP->GetBuffer()->GetData(), nSize);
-	SendData(pNP->GetCtx(), buffer.GetBuffer(), buffer.GetBufferLen());*/
-	SendData(pNP->GetCtx(), str.c_str(), str.size());
-	//CloseClient(pNP->GetCtx());
+	__try {
+
+	}
+	__except (EXCEPTION_EXECUTE_HANDLER) {
+
+	}
 }
 
 void* CIocpTcpServer::GetWorkerContext()
@@ -1073,19 +1052,7 @@ void CIocpTcpServer::SocketThreadFunc()
 				{
 					continue;
 				}
-				SOCKET socket = INVALID_SOCKET;
-				if (IoType::enIoAccept == pBuffer->m_ioType)
-				{
-					CSocketListenContext* pListen = m_pSocketContextMgr->GetListenCtx();
-					if (pListen)
-					{
-						socket = pListen->m_hSocket;
-					}
-				}
-				else
-				{
-					socket = pContext->m_hSocket;
-				}
+				SOCKET socket = pBuffer->m_hSocket;
 				if (INVALID_SOCKET == socket)
 				{
 					myLogConsoleE("%s INVALID_SOCKET == socket", __FUNCTION__);
@@ -1093,12 +1060,19 @@ void CIocpTcpServer::SocketThreadFunc()
 				}
 				/*查询该套接口上一个重叠操作失败的原因*/
 				DWORD dwFlags = 0;
-				BOOL bResult = ::WSAGetOverlappedResult(socket, &(pBuffer->m_ol), &dwError, FALSE, &dwFlags);
+				DWORD cbTransfer = 0;
+				BOOL bResult = ::WSAGetOverlappedResult(socket, &(pBuffer->m_ol), &cbTransfer, FALSE, &dwFlags);
 				if (!bResult)
 				{
 					dwError = ::WSAGetLastError();
-					myLogConsoleW("%s WSAGetOverlappedResult返回失败", __FUNCTION__);
-					myLogConsoleW("%s GetQueuedCompletionStatus返回False，错误码dwError：%d", __FUNCTION__, dwError);
+					myLogConsoleW("%s WSAGetOverlappedResult返回失败，错误码：%d", __FUNCTION__, dwError);
+				}
+				/*检查该套接字上的错误*/
+				if (NO_ERROR != dwError)
+				{
+					CloseClient(pBuffer->m_hSocket);
+					m_pSocketBufferMgr->ReleaseSocketBuffer(pBuffer);
+					myLogConsoleW("%s 套接字%d发生错误", __FUNCTION__, pContext->m_hSocket);
 				}
 			}
 		}
@@ -1158,7 +1132,7 @@ void CIocpTcpServer::WorkerThreadFunc()
 
 /*CIocpTcpClient*/
 CIocpTcpClient::CIocpTcpClient():
-	CIocpTcpServer(CPS_FLAG_DEFAULT)
+	CIocpTcpServer(CPS_FLAG_MSG_HEAD)
 {
 
 }
@@ -1284,11 +1258,17 @@ bool CIocpTcpClient::SendData(const void* pDataPtr, const int& nDataLen)
 	return __super::SendData(hSocket, pDataPtr, nDataLen);
 }
 
+bool CIocpTcpClient::SendRequest(SOCKET hSocket, ContextHead* pContextHead, NetRequest* pRequest)
+{
+	return true;
+}
+
 void CIocpTcpClient::OnRequest(void* p1, void* p2)
 {
-	NetPacket* pNP = (NetPacket*)p1;
-	myLogConsoleI("recv:[%s]", (char*)pNP->GetData());
+	__try {
 
-	//std::string str = "connected success!!!";
-	//SendData(str.c_str(), str.size());
+	}
+	__except (EXCEPTION_EXECUTE_HANDLER) {
+
+	}
 }

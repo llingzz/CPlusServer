@@ -5,7 +5,7 @@
 
 int main()
 {
-#if 0
+#if 1
 	CIocpTcpServer* IocpServer = new CIocpTcpServer(CPS_FLAG_DEFAULT);
 	if (!IocpServer || !IocpServer->Initialize("127.0.0.1", 8888, 32, 64, 4, 10000))
 	{

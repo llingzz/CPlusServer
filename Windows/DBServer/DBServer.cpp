@@ -66,15 +66,23 @@ void CDBServer::OnWorkerExit(void* pContext)
 
 void CDBServer::OnRequest(void* p1, void* p2)
 {
-	NetPacket* pData = (NetPacket*)p1;
-	myLogConsoleI("[%s] recv:[%s]", __FUNCTION__, pData->GetData());
+	CSocketContext* pContext = (CSocketContext*)p1;
+	NetRequest* pRequest = (NetRequest*)p2;
+	CWorkerContext* pThreadContext = (CWorkerContext*)GetWorkerContext();
 
-	//std::string str = "hello";
-	//SendData(pData->GetCtx(), str.c_str(), str.size());
-	//CloseClient(pData->GetCtx()->m_hSocket);
+	__try {
+		switch (pRequest->head.nRequest) {
+		case emOnGetUserInfo:
+			OnGetUserInfo(pContext, pRequest, pThreadContext);
+			break;
+		default:
+			OnUnsupported(pContext, pRequest, pThreadContext);
+			break;
+		}
+	}
+	__except (EXCEPTION_EXECUTE_HANDLER) {
 
-	CWorkerContext* pThreadContext = (CWorkerContext*)p2;
-	DB_TestGetUserInfo(pThreadContext, pData);
+	}
 
 	if (pThreadContext && pThreadContext->m_bReconnect) {
 		pThreadContext->m_pConnection->ReConnect();
@@ -120,18 +128,45 @@ BOOL CDBServer::DB_TestTrans(CWorkerContext* pContext)
 	return TRUE;
 }
 
-BOOL CDBServer::DB_TestGetUserInfo(CWorkerContext* pContext, NetPacket* pData)
+BOOL CDBServer::OnUnsupported(CSocketContext* pContext, NetRequest* pRequest, CWorkerContext* pThreadCtx)
 {
-	char szSql[1024] = { 0 };
-	std::string strName = "";
-	int nUserId = atoi((const char*)pData->GetData());
-	sprintf_s(szSql, "select * from tblUserInfo where u_id=%d;", nUserId);
-	pContext->m_pConnection->ExecQuery(std::string(szSql));
-	if (!pContext->m_pConnection->EndOfFile()) {
-		pContext->m_pConnection->GetFieldValue("u_name", strName);
+	return TRUE;
+}
+
+BOOL CDBServer::OnGetUserInfo(CSocketContext* pContext, NetRequest* pRequest, CWorkerContext* pThreadCtx)
+{
+	ContextHead* pContextHead = (ContextHead*)((PBYTE)pRequest->pData);
+	int* pUserId = (int*)((PBYTE)pRequest->pData + pRequest->head.nRepeated * sizeof(ContextHead));
+	if (pUserId) {
+		int nUserId = *pUserId;
+		std::string strRet = "";
+		char szSql[1024] = { 0 };
+		try {
+			sprintf_s(szSql, "select * from tblUserInfo where u_id=%d;", nUserId);
+			pThreadCtx->m_pConnection->ExecQuery(std::string(szSql));
+			if (!pThreadCtx->m_pConnection->EndOfFile()) {
+				pThreadCtx->m_pConnection->GetFieldValue("u_name", strRet);
+			}
+			pThreadCtx->m_pConnection->QueryClose();
+		}
+		catch (...) {
+			myLogConsoleE("%s catch error! sql:%s", __FUNCTION__, szSql);
+		}
+
+		NetPacketHead stHead = { 0 };
+		stHead.nDataLen = sizeof(NetRequest) + sizeof(ContextHead) + strRet.size();
+		NetRequest req;
+		req.head.nRepeated = 1;
+		ContextHead head;
+		head.hSocket = pContextHead->hSocket;
+		CBuffer objBuffer;
+		objBuffer.Write((PBYTE)&stHead, sizeof(NetPacketHead));
+		objBuffer.Write((PBYTE)&req, sizeof(NetRequest));
+		objBuffer.Write((PBYTE)&head, sizeof(ContextHead));
+		objBuffer.Write((PBYTE)strRet.c_str(), strRet.size());
+		SendData(pContext->m_hSocket, objBuffer.GetBuffer(), objBuffer.GetBufferLen());
 	}
-	pContext->m_pConnection->QueryClose();
-	return SendData(pData->GetCtx()->m_hSocket, strName.c_str(), strName.size());
+	return TRUE;
 }
 
 int main()

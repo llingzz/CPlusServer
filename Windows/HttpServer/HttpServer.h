@@ -87,24 +87,26 @@ public:
 
 typedef std::function<void(CHttpRequest&, CHttpResponse&)> Handler;
 typedef std::vector<std::pair<std::regex, Handler>> Handlers;
+
+class CHttpServer;
 class CDBClient : public CIocpTcpClient {
 public:
-	CDBClient() {
-
+	CDBClient(CHttpServer* pServer) {
+		m_pServer = pServer;
 	}
 	~CDBClient() {
 
 	}
 
 public:
-	virtual void OnRequest(void* p1, void* p2) {
-		NetPacket* pNP = (NetPacket*)p1;
-		myLogConsoleI("recvDB:[%s]", (char*)pNP->GetData());
-	}
+	virtual void OnRequest(void* p1, void* p2);
 
 private:
 	CDBClient(const CDBClient&) = delete;
 	CDBClient& operator=(const CDBClient&) = delete;
+
+private:
+	CHttpServer* m_pServer;
 };
 class CHttpServer :public CIocpTcpServer {
 public:
@@ -120,7 +122,7 @@ public:
 public:
 	virtual bool Initialize(const char* lpSzIp, UINT nPort, UINT nInitAccepts, UINT nMaxAccpets, UINT nThreads, UINT nMaxConnections) {
 		bool bRet = __super::Initialize(lpSzIp, nPort, nInitAccepts, nMaxAccpets, nThreads, nMaxConnections);
-		m_pDBClient = new CDBClient;
+		/*m_pDBClient = new CDBClient(this);
 		if (!m_pDBClient) {
 			return false;
 		}
@@ -131,13 +133,14 @@ public:
 		int nDBSvrPort = 8888;
 		if (!m_pDBClient->BeginConnect(strDBSvrIp, nDBSvrPort)) {
 			return false;
-		}
+		}*/
 		return bRet;
 	}
 	virtual void OnRequest(void* p1, void* p2)
 	{
-		NetPacket* pNP = (NetPacket*)p1;
-		std::string strSrc((const char*)pNP->GetData());
+		CSocketContext* pContext = (CSocketContext*)p1;
+		NetRequest* pRequest = (NetRequest*)p2;
+		std::string strSrc((const char*)pRequest->pData + pRequest->head.nRepeated * sizeof(ContextHead));
 
 		int nOffset = 0;
 		std::vector<std::string> strStrings;
@@ -162,7 +165,7 @@ public:
 		strHeadStrings.emplace_back(strSrc.substr(nOffset - 1, strHead.size() - nOffset + 1));
 
 		CHttpRequest request;
-		request.m_pContext = pNP->GetCtx();
+		request.m_pContext = pContext;
 		request.setMethod(strHeadStrings[0]);
 		request.setPath(strHeadStrings[1]);
 		request.m_strVersion = strHeadStrings[2];
@@ -183,7 +186,7 @@ public:
 		}
 
 		CHttpResponse response;
-		response.m_pContext = pNP->GetCtx();
+		response.m_pContext = pContext;
 		dispatchRequest(request, response);
 	}
 
@@ -193,8 +196,21 @@ private:
 		return httpResponse(response);
 	}
 	void getUserInfoCallback(CHttpRequest& request, CHttpResponse& response) {
-		std::string strUserId = "123456";
-		m_pDBClient->SendData(strUserId.c_str(), strUserId.size());
+		int nUserId = 123456;
+		NetPacketHead stHead = { 0 };
+		stHead.nDataLen = sizeof(NetRequest) + sizeof(ContextHead) + sizeof(nUserId);
+		ContextHead head;
+		head.hSocket = request.m_pContext->m_hSocket;
+		head.lToken = request.m_pContext->m_lToken;
+		NetRequest req = { 0 };
+		req.head.nRepeated = 1;
+		req.head.nRequest = 10001;
+		CBuffer objBuffer;
+		objBuffer.Write((PBYTE)&stHead, sizeof(NetPacketHead));
+		objBuffer.Write((PBYTE)&req, sizeof(NetRequest));
+		objBuffer.Write((PBYTE)&head, sizeof(ContextHead));
+		objBuffer.Write((PBYTE)&nUserId, sizeof(nUserId));
+		m_pDBClient->SendData(objBuffer.GetBuffer(), objBuffer.GetBufferLen());
 	}
 	void registeGetCallback(std::string strMethod, Handler handler) {
 		m_mapGetIterfaces.insert(std::make_pair(strMethod, handler));

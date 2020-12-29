@@ -3,6 +3,15 @@
 #include "DBConnection.h"
 #include "OleDBConnection.h"
 
+enum DBServerProtocal
+{
+	DBServerBegin = 10000,
+
+	emOnGetUserInfo,
+
+	DBServerEnd = 20000,
+};
+
 class CWorkerContext {
 public:
 	CWorkerContext() {
@@ -21,7 +30,7 @@ public:
 
 class CDBServer : public CIocpTcpServer {
 public:
-	CDBServer() : CIocpTcpServer(CPS_FLAG_DEFAULT){
+	CDBServer() : CIocpTcpServer(CPS_FLAG_MSG_HEAD){
 
 	}
 	virtual ~CDBServer() {
@@ -36,5 +45,6 @@ public:
 private:
 	BOOL DB_TestNormal(CWorkerContext* pContext);
 	BOOL DB_TestTrans(CWorkerContext* pContext);
-	BOOL DB_TestGetUserInfo(CWorkerContext* pContext, NetPacket* pData);
+	BOOL OnUnsupported(CSocketContext* pContext, NetRequest* pRequest, CWorkerContext* pThreadCtx);
+	BOOL OnGetUserInfo(CSocketContext* pContext, NetRequest* pRequest, CWorkerContext* pThreadCtx);
 };

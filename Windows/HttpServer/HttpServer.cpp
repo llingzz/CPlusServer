@@ -120,6 +120,16 @@ LONG WINAPI ExpFilter(struct _EXCEPTION_POINTERS* pExp)
 	return EXCEPTION_EXECUTE_HANDLER;
 }
 
+void CDBClient::OnRequest(void* p1, void* p2) {
+	CSocketContext* pContext = (CSocketContext*)p1;
+	NetRequest* pRequest = (NetRequest*)p2;
+	ContextHead* pContextHead = (ContextHead*)((PBYTE)pRequest->pData);
+	char* pRet = (char*)((PBYTE)pRequest->pData + pRequest->head.nRepeated * sizeof(ContextHead));
+	std::string strRet = std::string(pRet);
+	m_pServer->SendData(pContextHead->hSocket, strRet.c_str(), strRet.size());
+	m_pServer->CloseClient(pContextHead->hSocket);
+}
+
 int main()
 {
 	::SetUnhandledExceptionFilter(ExpFilter);
@@ -129,7 +139,7 @@ int main()
 		DisableSetUnhandledExceptionFilter();
 	}
 	CHttpServer* pHttpServer = new CHttpServer;
-	if (!pHttpServer || !pHttpServer->Initialize("127.0.0.1", 8080, 32, 64, 4, 10000))
+	if (!pHttpServer || !pHttpServer->Initialize("127.0.0.1", 8080, 32, 64, 4, 20480))
 	{
 		myLogConsoleI("server initialize failed");
 	}
