@@ -288,7 +288,9 @@ class CSocketContext {
 public:
 	SOCKET						m_hSocket;
 	ULONG						m_lToken;
+	UINT						m_nFlag;
 	BOOL						m_bClosing;
+	BOOL						m_bDelayClose;
 
 	SOCKADDR_IN					m_local;
 	SOCKADDR_IN					m_remote;
@@ -316,7 +318,9 @@ public:
 	{
 		m_hSocket = INVALID_SOCKET;
 		m_lToken = 0L;
+		m_nFlag = 0;
 		m_bClosing = FALSE;
+		m_bDelayClose = FALSE;
 		ZeroMemory(&m_local, sizeof(m_local));
 		ZeroMemory(&m_remote, sizeof(m_remote));
 		ZeroMemory(&m_recvDataBuff, 8192);
@@ -336,7 +340,9 @@ public:
 	{
 		m_hSocket = INVALID_SOCKET;
 		m_lToken = 0L;
+		m_nFlag = 0;
 		m_bClosing = FALSE;
+		m_bDelayClose = FALSE;
 		ZeroMemory(&m_local, sizeof(m_local));
 		ZeroMemory(&m_remote, sizeof(m_remote));
 		ZeroMemory(&m_recvDataBuff, 8192);
@@ -461,7 +467,7 @@ public:
 	}
 
 public:
-	CSocketContext* AllocateSocketContext(SOCKET hSocket)
+	CSocketContext* AllocateSocketContext(SOCKET hSocket, UINT nIndex = 0)
 	{
 		CSocketContext* pContext = nullptr;
 		if (INVALID_SOCKET == hSocket)
@@ -495,6 +501,11 @@ public:
 			pContext->m_bClosing = FALSE;
 			pContext->m_hSocket = hSocket;
 			pContext->m_lToken = lToken;
+			pContext->m_nFlag = nIndex;
+			if (nIndex > 0)
+			{
+				m_mapServer.insert(std::make_pair(nIndex, pContext->m_hSocket));
+			}
 			m_mapConnection.insert(std::make_pair(hSocket, pContext));
 		}
 		else
@@ -526,6 +537,11 @@ public:
 		{
 			m_mapConnection.erase(pContext->m_hSocket);
 		}
+		if (m_mapServer.find(pContext->m_nFlag) != m_mapServer.end())
+		{
+			m_mapServer.erase(pContext->m_nFlag);
+		}
+		pContext->m_nFlag = 0;
 		m_listFreeTokens.emplace_back(pContext->m_lToken);
 		pContext->m_lToken = 0L;
 		SAFE_RELEASE_SOCKET(pContext->m_hSocket);
@@ -615,16 +631,16 @@ public:
 	{
 		return m_pListenContext;
 	}
-	SOCKET GetRemoteSocket()
+	SOCKET GetSocket(UINT nIndex)
 	{
-		SOCKET hSocket = INVALID_SOCKET;
+		CSocketContext* pContext = nullptr;
 		CAutoLock lock(&m_lock);
-		auto first = m_mapConnection.begin();
-		if (first != m_mapConnection.end())
+		auto iter = m_mapServer.find(nIndex);
+		if (iter != m_mapServer.end())
 		{
-			hSocket = first->first;
+			return iter->second;
 		}
-		return hSocket;
+		return INVALID_SOCKET;
 	}
 	SOCKET GetListenSocket()
 	{
@@ -637,6 +653,13 @@ public:
 	HANDLE GetRepostHandle()
 	{
 		return m_pListenContext->m_hRepostHandle;
+	}
+	void GetSockets(std::map<UINT, SOCKET>& mapServer)
+	{
+		CAutoLock lock(&m_lock);
+		for (auto& iter : m_mapServer) {
+			mapServer.insert(std::make_pair(iter.first, iter.second));
+		}
 	}
 
 private:
@@ -663,8 +686,9 @@ private:
 	ULONG								m_lNextTokenID;
 	ULONG								m_lMaxConnections;
 	std::list<ULONG>					m_listFreeTokens;
-	std::map<SOCKET, CSocketContext*>	m_mapConnection;
+	std::map<UINT, SOCKET>				m_mapServer;
 	std::map<SOCKET, ULONGLONG>			m_mapPendingCloses;
+	std::map<SOCKET, CSocketContext*>	m_mapConnection;
 	CSocketContext*						m_pSocketContextList;
 	CSocketListenContext*				m_pListenContext;
 	CSocketBufferMgr*					m_pBufManager;
@@ -710,6 +734,7 @@ public:
 	virtual bool PostRecv(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
 	virtual bool PostSend(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
 	virtual bool PostConn(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
+	virtual bool PostClose(CSocketContext* pContext, CSocketBuffer* pBuffer, DWORD& dwWSAError);
 
 	virtual bool CloseClient(SOCKET hSocket);
 	virtual bool SendData(SOCKET hSocket, const void* pDataPtr, int nDataLen);
@@ -778,11 +803,12 @@ private:
 public:
 	virtual bool Create();
 	virtual bool BeginThreadPool(UINT nThreads = 0);
-	virtual bool ConnectOneServer(const std::string strIp, const int nPort);
-	virtual bool BeginConnect(const std::string& strIp, const int& nPort);
-	virtual bool DisconnectServer();
+	virtual bool ConnectOneServer(const std::string strIp, const int nPort, const UINT& nIndex);
+	virtual bool BeginConnect(const std::string& strIp, const int& nPort, const UINT& nIndex);
+	virtual bool DisconnectServer(const UINT& nIndex);
 	virtual bool Destroy();
 
-	virtual bool SendData(const void* pDataPtr, const int& nDataLen);
+	virtual bool SendCast(const void* pDataPtr, const int& nDataLen);
+	virtual bool SendOneServer(const UINT& nIndex, const void* pDataPtr, const int& nDataLen);
 	virtual void OnRequest(void* p1, void* p2);
 };

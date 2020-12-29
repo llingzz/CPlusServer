@@ -26,7 +26,7 @@ int main()
 		myLogConsoleE("pClient->Create() failed");
 		return 0;
 	}
-	if (!pClient->BeginConnect(strIp, 8888))
+	if (!pClient->BeginConnect(strIp, 8888, 1))
 	{
 		pClient->Destroy();
 		myLogConsoleE("BeginConnect failed");
@@ -35,19 +35,19 @@ int main()
 	std::string str1 = "helloworld!";
 	std::string str2 = "helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!helloworld!ssssssssssssss!helloworld!";
 	std::string str3 = "abcdefg";
-	pClient->SendData(str1.c_str(), str1.size());
-	pClient->SendData(str2.c_str(), str2.size());
-	pClient->SendData(str3.c_str(), str3.size());
-	pClient->SendData(str1.c_str(), str1.size());
-	pClient->SendData(str3.c_str(), str3.size());
+	pClient->SendOneServer(1, str1.c_str(), str1.size());
+	pClient->SendOneServer(1, str2.c_str(), str2.size());
+	pClient->SendOneServer(1, str3.c_str(), str3.size());
+	pClient->SendOneServer(1, str1.c_str(), str1.size());
+	pClient->SendOneServer(1, str3.c_str(), str3.size());
 	Sleep(5000);
-	pClient->DisconnectServer();
+	pClient->DisconnectServer(1);
 	Sleep(5000);
-	pClient->BeginConnect(strIp, 8888);
+	pClient->BeginConnect(strIp, 8888, 2);
 	while (TRUE)
 	{
 		Sleep(1000);
-		pClient->SendData(str1.c_str(), str1.size());
+		pClient->SendData(2, str1.c_str(), str1.size());
 	}
 	char c = getchar();
 	pClient->Destroy();

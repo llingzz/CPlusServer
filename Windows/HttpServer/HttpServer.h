@@ -120,7 +120,7 @@ public:
 public:
 	virtual bool Initialize(const char* lpSzIp, UINT nPort, UINT nInitAccepts, UINT nMaxAccpets, UINT nThreads, UINT nMaxConnections) {
 		bool bRet = __super::Initialize(lpSzIp, nPort, nInitAccepts, nMaxAccpets, nThreads, nMaxConnections);
-		m_pDBClient = new CDBClient;
+		/*m_pDBClient = new CDBClient;
 		if (!m_pDBClient) {
 			return false;
 		}
@@ -131,7 +131,7 @@ public:
 		int nDBSvrPort = 8888;
 		if (!m_pDBClient->BeginConnect(strDBSvrIp, nDBSvrPort)) {
 			return false;
-		}
+		}*/
 		return bRet;
 	}
 	virtual void OnRequest(void* p1, void* p2)
@@ -194,7 +194,7 @@ private:
 	}
 	void getUserInfoCallback(CHttpRequest& request, CHttpResponse& response) {
 		std::string strUserId = "123456";
-		m_pDBClient->SendData(strUserId.c_str(), strUserId.size());
+		//m_pDBClient->SendData(strUserId.c_str(), strUserId.size());
 	}
 	void registeGetCallback(std::string strMethod, Handler handler) {
 		m_mapGetIterfaces.insert(std::make_pair(strMethod, handler));
