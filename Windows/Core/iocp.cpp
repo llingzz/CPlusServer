@@ -102,7 +102,7 @@ bool CSocketContext::CheckHeader(NetPacketHead* pHeader)
 }
 
 /*CIocpTcpServer*/
-CIocpTcpServer::CIocpTcpServer(DWORD dwFlag):
+CIocpTcpServer::CIocpTcpServer(DWORD dwFlag) :
 	m_nFlag(dwFlag)
 {
 	m_nPort = 0;
@@ -220,7 +220,7 @@ bool CIocpTcpServer::BeginBindListen(const char* lpSzIp, UINT nPort, UINT nInitA
 	sock_in.sin_port = ::ntohs(m_nPort);
 	inet_pton(AF_INET, (PCSTR)m_szIp, &sock_in.sin_addr);
 
-	int nRet = ::bind(m_pSocketContextMgr->GetListenSocket(), (SOCKADDR*)& sock_in, sizeof(sock_in));
+	int nRet = ::bind(m_pSocketContextMgr->GetListenSocket(), (SOCKADDR*)&sock_in, sizeof(sock_in));
 	if (SOCKET_ERROR == nRet)
 	{
 		myLogConsoleE("%s 套接字bind错误", __FUNCTION__);
@@ -326,7 +326,7 @@ bool CIocpTcpServer::PostAccept(CSocketContext* pContext, CSocketBuffer* pBuffer
 
 	// 设置为非阻塞
 	unsigned long ul = 1;
-	int nRet = ioctlsocket(pBuffer->m_hSocket, FIONBIO, (unsigned long*)& ul);
+	int nRet = ioctlsocket(pBuffer->m_hSocket, FIONBIO, (unsigned long*)&ul);
 	if (nRet != 0)
 	{
 		return false;
@@ -585,7 +585,6 @@ void CIocpTcpServer::HandleIo(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dwTrans
 		if (IoType::enIoAccept == pBuffer->m_ioType && pListen)
 		{
 			HandleIoAccept(dwKey, pBuffer, dwTrans, dwError);
-			m_pSocketBufferMgr->RemovePendingAccepts(pBuffer);
 		}
 		else
 		{
@@ -677,6 +676,7 @@ void CIocpTcpServer::HandleIoAccept(DWORD dwKey, CSocketBuffer* pBuffer, DWORD d
 			}
 		}
 	}
+	m_pSocketBufferMgr->RemovePendingAccepts(pBuffer);
 	/*Accept I/O操作完成，释放pBuffer*/
 	m_pSocketBufferMgr->ReleaseSocketBuffer(pBuffer);
 	/*通知Accept线程中的m_hRepostHandle事件重新投递一个Accept操作*/
@@ -881,7 +881,7 @@ void CIocpTcpServer::DispatchData(NetPacket* pNP)
 		request.nDataLen = pNP->GetDataLen() - sizeof(NetRequest);
 		request.pData = (PBYTE)pNP->GetData() + sizeof(NetRequest);
 	}
-	else if(m_nFlag & CPS_FLAG_DEFAULT) {
+	else if (m_nFlag & CPS_FLAG_DEFAULT) {
 		request.nDataLen = pNP->GetDataLen();
 		request.pData = (void*)pNP->GetData();
 	}
@@ -971,7 +971,7 @@ void CIocpTcpServer::AcceptThreadFunc()
 			// 检查当前挂起的所有待关闭连接，防止恶意连接占用套接字资源
 			m_pSocketContextMgr->CheckPendingCloses();
 		}
-		else if(WSA_WAIT_EVENT_0 == dwWaitRet)
+		else if (WSA_WAIT_EVENT_0 == dwWaitRet)
 		{
 			// 查询Accept事件处理：dwWaitRet返回值区间位于[WSA_WAIT_EVENT_0， (WSA_WAIT_EVENT_0+ nEventCount - 1)]，对应索引，超出代表发生错误
 			dwWaitRet = dwWaitRet - WSA_WAIT_EVENT_0;
@@ -1131,7 +1131,7 @@ void CIocpTcpServer::WorkerThreadFunc()
 }
 
 /*CIocpTcpClient*/
-CIocpTcpClient::CIocpTcpClient():
+CIocpTcpClient::CIocpTcpClient() :
 	CIocpTcpServer(CPS_FLAG_MSG_HEAD)
 {
 
@@ -1185,7 +1185,7 @@ bool CIocpTcpClient::ConnectOneServer(const std::string strIp, const int nPort)
 
 	int nRet = 0;
 	unsigned long ul = 1;
-	nRet = ioctlsocket(pContext->m_hSocket, FIONBIO, (unsigned long*)& ul);
+	nRet = ioctlsocket(pContext->m_hSocket, FIONBIO, (unsigned long*)&ul);
 	if (nRet != 0)
 	{
 		DWORD dwErrCode = ::WSAGetLastError();
@@ -1200,7 +1200,7 @@ bool CIocpTcpClient::ConnectOneServer(const std::string strIp, const int nPort)
 	svrAddr.sin_family = AF_INET;
 	svrAddr.sin_port = htons(0);
 	svrAddr.sin_addr.s_addr = INADDR_ANY;
-	int ret = ::bind(pContext->m_hSocket, (SOCKADDR*)& svrAddr, sizeof(svrAddr));
+	int ret = ::bind(pContext->m_hSocket, (SOCKADDR*)&svrAddr, sizeof(svrAddr));
 	if (SOCKET_ERROR == ret)
 	{
 		DWORD dwErrCode = ::WSAGetLastError();

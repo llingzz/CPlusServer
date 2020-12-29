@@ -106,7 +106,7 @@ public:
 	WSAOVERLAPPED		m_ol;
 	SOCKET				m_hSocket;
 	IoType				m_ioType;
-	 LONGLONG			m_llSerialNo;
+	LONGLONG			m_llSerialNo;
 	IDataBuffer*		m_pBuffer;
 	CSocketBuffer*		m_pNext;
 
@@ -264,7 +264,7 @@ public:
 			int nTimesLen = sizeof(int);
 
 			// 获取socket连接建立时长，时间长的话直接断开
-			::getsockopt(pBuffer->m_hSocket, SOL_SOCKET, SO_CONNECT_TIME, (char*)&nTimes, &nTimesLen);
+			::getsockopt(pBuffer->m_hSocket, SOL_SOCKET, SO_CONNECT_TIME, (char*)& nTimes, &nTimesLen);
 			if (-1 != nTimes && nTimes > 2)
 			{
 				SAFE_RELEASE_SOCKET(pBuffer->m_hSocket);
@@ -435,14 +435,14 @@ public:
 
 		DWORD bytes = 0;
 		GUID guid = WSAID_ACCEPTEX;
-		::WSAIoctl(m_hSocket, SIO_GET_EXTENSION_FUNCTION_POINTER, (LPVOID)&guid, sizeof(guid), &(m_lpfnAcceptEx), sizeof(m_lpfnAcceptEx), &bytes, NULL, NULL);
+		::WSAIoctl(m_hSocket, SIO_GET_EXTENSION_FUNCTION_POINTER, (LPVOID)& guid, sizeof(guid), &(m_lpfnAcceptEx), sizeof(m_lpfnAcceptEx), &bytes, NULL, NULL);
 		if (!m_lpfnAcceptEx)
 		{
 			myLogConsoleE("%s m_lpfnAcceptEx为nullptr!!!", __FUNCTION__, m_hSocket);
 			return false;
 		}
 		guid = WSAID_GETACCEPTEXSOCKADDRS;
-		::WSAIoctl(m_hSocket, SIO_GET_EXTENSION_FUNCTION_POINTER, (LPVOID)&guid, sizeof(guid), &(m_lpfnGetAcceptExSockaddrs), sizeof(m_lpfnGetAcceptExSockaddrs), &bytes, NULL, NULL);
+		::WSAIoctl(m_hSocket, SIO_GET_EXTENSION_FUNCTION_POINTER, (LPVOID)& guid, sizeof(guid), &(m_lpfnGetAcceptExSockaddrs), sizeof(m_lpfnGetAcceptExSockaddrs), &bytes, NULL, NULL);
 		if (!m_lpfnGetAcceptExSockaddrs)
 		{
 			myLogConsoleE("%s m_lpfnGetAcceptExSockaddrs为nullptr!!!", __FUNCTION__, m_hSocket);
@@ -456,7 +456,6 @@ public:
 		::InterlockedIncrement(&m_nRepostCount);
 		::SetEvent(m_hRepostHandle);
 	}
-	
 };
 class CSocketContextMgr {
 public:
