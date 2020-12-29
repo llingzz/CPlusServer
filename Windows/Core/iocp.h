@@ -261,26 +261,30 @@ public:
 		while (pBuffer)
 		{
 			int nTimes = 0;
+			bool bDelete = false;
 			int nTimesLen = sizeof(int);
-
-			// 获取socket连接建立时长，时间长的话直接断开
-			::getsockopt(pBuffer->m_hSocket, SOL_SOCKET, SO_CONNECT_TIME, (char*)&nTimes, &nTimesLen);
-			if (-1 != nTimes && nTimes > 2)
+			if (pBuffer->m_hSocket != INVALID_SOCKET)
 			{
-				SAFE_RELEASE_SOCKET(pBuffer->m_hSocket);
-				ZeroMemory(&pBuffer->m_ol, sizeof(pBuffer->m_ol));
-				pBuffer->m_ioType = IoType::enIoInit;
-				pBuffer->m_llSerialNo = 0;
-				if (pBuffer->m_pBuffer)
+				// 获取socket连接建立时长，时间长的话直接断开
+				::getsockopt(pBuffer->m_hSocket, SOL_SOCKET, SO_CONNECT_TIME, (char*)&nTimes, &nTimesLen);
+				if (nTimes <= 2)
 				{
-					pBuffer->m_pBuffer->Release();
-					pBuffer->m_pBuffer = nullptr;
+					pBuffer = pBuffer->m_pNext;
+					continue;
 				}
-				pBuffer->m_pNext = nullptr;
-				pBuffer->m_pNext = m_pSocketBufferList;
-				m_pSocketBufferList = pBuffer;
-				//ReleaseSocketBuffer(pBuffer);
 			}
+			SAFE_RELEASE_SOCKET(pBuffer->m_hSocket);
+			ZeroMemory(&pBuffer->m_ol, sizeof(pBuffer->m_ol));
+			pBuffer->m_ioType = IoType::enIoInit;
+			pBuffer->m_llSerialNo = 0;
+			if (pBuffer->m_pBuffer)
+			{
+				pBuffer->m_pBuffer->Release();
+				pBuffer->m_pBuffer = nullptr;
+			}
+			pBuffer->m_pNext = nullptr;
+			pBuffer->m_pNext = m_pSocketBufferList;
+			m_pSocketBufferList = pBuffer;
 			pBuffer = pBuffer->m_pNext;
 		}
 	}
@@ -512,6 +516,7 @@ public:
 		if (pContext)
 		{
 			pContext->m_bClosing = FALSE;
+			pContext->m_bDelayClose = FALSE;
 			pContext->m_hSocket = hSocket;
 			pContext->m_lToken = lToken;
 			pContext->m_nFlag = nIndex;

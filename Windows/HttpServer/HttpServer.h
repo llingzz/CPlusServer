@@ -152,6 +152,10 @@ public:
 			}
 		}
 
+		if (strStrings.size() <= 0) {
+			return;
+		}
+
 		nOffset = 0;
 		std::string strHead = strStrings[0];
 		std::vector<std::string> strHeadStrings;
