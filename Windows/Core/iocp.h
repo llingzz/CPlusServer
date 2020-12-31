@@ -53,7 +53,10 @@ public:
 	{
 
 	}
+	NetPacket(const NetPacket&) = delete;
+	NetPacket& operator=(const NetPacket&) = delete;
 
+public:
 	CSocketContext* GetCtx()
 	{
 		return m_pContext;
@@ -70,17 +73,12 @@ public:
 	{
 		return m_pDataBuffer->GetDataLen();
 	}
-
 	void Release()
 	{
 		m_pContext = nullptr;
 		m_pDataBuffer->Release();
 		m_pDataBuffer = nullptr;
 	}
-
-private:
-	NetPacket(const NetPacket&) = delete;
-	NetPacket& operator=(const NetPacket&) = delete;
 
 private:
 	CSocketContext* m_pContext;
@@ -126,8 +124,6 @@ public:
 		m_ioType = IoType::enIoInit;
 		m_pNext = nullptr;
 	}
-
-private:
 	CSocketBuffer(const CSocketBuffer&) = delete;
 	CSocketBuffer& operator=(const CSocketBuffer&) = delete;
 };
@@ -143,6 +139,8 @@ public:
 	{
 		m_pSocketBufferList = nullptr;
 	}
+	CSocketBufferMgr(const CSocketBufferMgr&) = delete;
+	CSocketBufferMgr& operator=(const CSocketBufferMgr&) = delete;
 
 public:
 	bool Init(CDataBufferMgr* pAllocator)
@@ -204,9 +202,11 @@ public:
 			pBuffer->m_pBuffer = nullptr;
 		}
 		pBuffer->m_pNext = nullptr;
-		CAutoLock lock(&m_lock);
-		pBuffer->m_pNext = m_pSocketBufferList;
-		m_pSocketBufferList = pBuffer;
+		{
+			CAutoLock lock(&m_lock);
+			pBuffer->m_pNext = m_pSocketBufferList;
+			m_pSocketBufferList = pBuffer;
+		}
 	}
 	void FreeSocketBuffer()
 	{
@@ -251,47 +251,34 @@ public:
 			if (pTemp)
 			{
 				pTemp->m_pNext = pBuffer->m_pNext;
+				pBuffer->m_pNext = nullptr;
 			}
 		}
 	}
 	void CheckPendingAccpets()
 	{
+		int nTimes = 0;
+		int nTimesLen = sizeof(int);
 		CAutoLock lock(&m_lock);
 		CSocketBuffer* pBuffer = m_pPendingAcceptList;
 		while (pBuffer)
 		{
-			int nTimes = 0;
-			bool bDelete = false;
-			int nTimesLen = sizeof(int);
+			// 获取socket连接建立时长，时间长的话直接断开
 			if (pBuffer->m_hSocket != INVALID_SOCKET)
 			{
-				// 获取socket连接建立时长，时间长的话直接断开
-				::getsockopt(pBuffer->m_hSocket, SOL_SOCKET, SO_CONNECT_TIME, (char*)&nTimes, &nTimesLen);
+				::getsockopt(pBuffer->m_hSocket, SOL_SOCKET, SO_CONNECT_TIME, (char*)& nTimes, &nTimesLen);
 				if (nTimes <= 2)
 				{
 					pBuffer = pBuffer->m_pNext;
 					continue;
 				}
 			}
-			SAFE_RELEASE_SOCKET(pBuffer->m_hSocket);
-			ZeroMemory(&pBuffer->m_ol, sizeof(pBuffer->m_ol));
-			pBuffer->m_ioType = IoType::enIoInit;
-			pBuffer->m_llSerialNo = 0;
-			if (pBuffer->m_pBuffer)
-			{
-				pBuffer->m_pBuffer->Release();
-				pBuffer->m_pBuffer = nullptr;
-			}
-			pBuffer->m_pNext = nullptr;
-			pBuffer->m_pNext = m_pSocketBufferList;
-			m_pSocketBufferList = pBuffer;
+			CSocketBuffer* pDelete = pBuffer;
 			pBuffer = pBuffer->m_pNext;
+			RemovePendingAccepts(pDelete);
+			ReleaseSocketBuffer(pDelete);
 		}
 	}
-
-private:
-	CSocketBufferMgr(const CSocketBufferMgr&) = delete;
-	CSocketBufferMgr& operator=(const CSocketBufferMgr&) = delete;
 
 private:
 	CSocketBuffer*		m_pSocketBufferList;
@@ -376,6 +363,10 @@ public:
 		m_pBufManager = nullptr;
 		m_pAllocator = nullptr;
 	}
+	CSocketContext(const CSocketContext&) = delete;
+	CSocketContext& operator=(const CSocketContext&) = delete;
+
+public:
 	bool HandleRecvData(CSocketBuffer* pBuffer, DWORD dwTrans, CIocpTcpServer* pServer);
 	bool CheckHeader(NetPacketHead* pData);
 	LONGLONG GetPendingRecvs()
@@ -383,10 +374,6 @@ public:
 		CAutoLock lock(&m_lock);
 		return m_llPendingRecvs;
 	}
-
-private:
-	CSocketContext(const CSocketContext&) = delete;
-	CSocketContext& operator=(const CSocketContext&) = delete;
 };
 class CSocketListenContext {
 public:
@@ -482,6 +469,8 @@ public:
 	{
 
 	}
+	CSocketContextMgr(const CSocketContextMgr&) = delete;
+	CSocketContextMgr& operator=(const CSocketContextMgr&) = delete;
 
 public:
 	CSocketContext* AllocateSocketContext(SOCKET hSocket, UINT nIndex = 0)
@@ -705,10 +694,6 @@ private:
 	}
 
 private:
-	CSocketContextMgr(const CSocketContextMgr&) = delete;
-	CSocketContextMgr& operator=(const CSocketContextMgr&) = delete;
-
-private:
 	ULONG								m_lNextTokenID;
 	ULONG								m_lMaxConnections;
 	std::list<ULONG>					m_listFreeTokens;
@@ -747,6 +732,8 @@ class CIocpTcpServer {
 public:
 	CIocpTcpServer(DWORD dwFlag);
 	virtual ~CIocpTcpServer();
+	CIocpTcpServer(const CIocpTcpServer&) = delete;
+	CIocpTcpServer& operator=(const CIocpTcpServer&) = delete;
 
 	virtual bool InitializeMembers(UINT nMaxConnections);
 	virtual bool BeginBindListen(const char* lpSzIp, UINT nPort, UINT nInitAccepts, UINT nMaxAccpets);
@@ -784,10 +771,6 @@ public:
 	virtual void* OnWorkerStart();
 	virtual void OnWorkerExit(void* pContext);
 
-private:
-	CIocpTcpServer(const CIocpTcpServer&) = delete;
-	CIocpTcpServer& operator=(const CIocpTcpServer&) = delete;
-
 protected:
 	void AcceptThreadFunc();
 	void SocketThreadFunc();
@@ -822,8 +805,6 @@ class CIocpTcpClient : public CIocpTcpServer
 public:
 	CIocpTcpClient();
 	virtual ~CIocpTcpClient();
-
-private:
 	CIocpTcpClient(const CIocpTcpClient&) = delete;
 	CIocpTcpClient& operator=(const CIocpTcpClient&) = delete;
 

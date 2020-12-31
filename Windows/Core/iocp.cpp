@@ -442,6 +442,7 @@ bool CIocpTcpServer::PostClose(CSocketContext* pContext, CSocketBuffer* pBuffer,
 {
 	if (pContext->m_bClosing)
 	{
+		myLogConsoleW("%s Ì×½Ó×Ö%dÕýÔÚ¹Ø±Õ", __FUNCTION__, pContext->m_hSocket);
 		return false;
 	}
 	pBuffer->m_ioType = IoType::enIoClose;
@@ -481,8 +482,15 @@ bool CIocpTcpServer::CloseClient(SOCKET hSocket)
 	CSocketContext* pCloseContext = m_pSocketContextMgr->GetCtx(hSocket);
 	if (pCloseContext)
 	{
-		CAutoLock lk(&pCloseContext->m_lock);
-		if (!pCloseContext->m_pWaitingSend && pCloseContext->m_llPendingSends <= 0)
+		bool bClose = false;
+		{
+			CAutoLock lk(&pCloseContext->m_lock);
+			if (!pCloseContext->m_pWaitingSend && pCloseContext->m_llPendingSends <= 0)
+			{
+				bClose = true;
+			}
+		}
+		if (bClose)
 		{
 #if 1
 			CSocketBuffer * pBuffer = m_pSocketBufferMgr->AllocateSocketBuffer(1);
@@ -508,7 +516,7 @@ bool CIocpTcpServer::CloseClient(SOCKET hSocket)
 		}
 		pCloseContext->m_bDelayClose = TRUE;
 	}
-	return true;
+	return false;
 }
 
 bool CIocpTcpServer::SendData(SOCKET hSocket, const void* pDataPtr, int nDataLen)
@@ -532,29 +540,38 @@ bool CIocpTcpServer::SendData(CSocketContext* pContext, const void* pDataPtr, in
 		return PostSend(pContext, pBuffer, dwError);
 	}
 #else
-	bool bRet = true;
+	bool bRet = false;
 	CSocketBuffer* pBuffer = m_pSocketBufferMgr->AllocateSocketBuffer(nDataLen);
 	if (pBuffer)
 	{
 		memcpy(pBuffer->m_pBuffer->GetBuffer(), pDataPtr, nDataLen);
-		CAutoLock lk(&pContext->m_lock);
-		if (!pContext->m_pWaitingSend)
 		{
-			DWORD dwError = NO_ERROR;
-			bRet = PostSend(pContext, pBuffer, dwError);
-		}
-		else
-		{
-			CSocketBuffer* pTempBuffer = pContext->m_pWaitingSend;
-			while (pTempBuffer->m_pNext)
+			CAutoLock lk(&pContext->m_lock);
+			if (pContext->m_llPendingSends > 0)
 			{
-				pTempBuffer = pTempBuffer->m_pNext;
+				if (!pContext->m_pWaitingSend)
+				{
+					pContext->m_pWaitingSend = pBuffer;
+				}
+				else
+				{
+					CSocketBuffer* pSendBuffer = pContext->m_pWaitingSend;
+					while (pSendBuffer->m_pNext)
+					{
+						pSendBuffer = pSendBuffer->m_pNext;
+					}
+					pSendBuffer->m_pNext = pBuffer;
+				}
 			}
-			pTempBuffer->m_pNext = pBuffer;
-		}
-		if (!bRet)
-		{
-			m_pSocketBufferMgr->ReleaseSocketBuffer(pBuffer);
+			else
+			{
+				DWORD dwError = NO_ERROR;
+				bRet = PostSend(pContext, pBuffer, dwError);
+				if (!bRet)
+				{
+					m_pSocketBufferMgr->ReleaseSocketBuffer(pBuffer);
+				}
+			}
 		}
 	}
 #endif
@@ -737,48 +754,66 @@ void CIocpTcpServer::HandleIoWrite(DWORD dwKey, CSocketBuffer* pBuffer, DWORD dw
 		}
 		else
 		{
-			CAutoLock lock(&pContext->m_lock);
-			pContext->m_llPendingSends--;
-#if 1
-			while (pContext->m_pWaitingSend)
+			bool bClose = false;
 			{
-				CSocketBuffer* pBuffer = m_pSocketBufferMgr->AllocateSocketBuffer(1024);
-				if (pBuffer)
+				CAutoLock lock(&pContext->m_lock);
+				pContext->m_llPendingSends--;
+				while (pContext->m_pWaitingSend)
 				{
-					int nLen = 0;
-					while (pContext->m_pWaitingSend && nLen < 1024)
+					int nSendLen = 0;
+					CSocketBuffer* pNewBuffer = m_pSocketBufferMgr->AllocateSocketBuffer(1024);
+					if (pNewBuffer)
 					{
-						CSocketBuffer* pTempBuffer = pContext->m_pWaitingSend;
-						int nDataLen = pTempBuffer->m_pBuffer->GetDataLen();
-						if (nDataLen > 1024)
+						while (pContext->m_pWaitingSend && nSendLen < 1024)
 						{
-							memcpy(pBuffer->m_pBuffer->GetBuffer(), pTempBuffer->m_pBuffer->GetData(), 1024 - 1);
-							memmove(pTempBuffer->m_pBuffer->GetData(), (pTempBuffer->m_pBuffer->GetData() + 1024 - 1), nDataLen - 1024 - 1);
-							pTempBuffer->m_pBuffer->SetDataLen(nDataLen - 1024 - 1);
-							nLen += 1024;
+							CSocketBuffer* pSendBuffer = pContext->m_pWaitingSend;
+							int nDataLen = pSendBuffer->m_pBuffer->GetDataLen();
+							if (nSendLen + nDataLen > 1024)
+							{
+								memcpy(pNewBuffer->m_pBuffer->GetBuffer() + nSendLen, pSendBuffer->m_pBuffer->GetData(), (1024 - nSendLen));
+								memmove(pSendBuffer->m_pBuffer->GetData(), (pSendBuffer->m_pBuffer->GetData() + (1024 - nSendLen)), nDataLen - (1024 - nSendLen));
+								pSendBuffer->m_pBuffer->SetDataLen(nDataLen - (1024 - nSendLen));
+								nSendLen = 1024;
+								pNewBuffer->m_pBuffer->SetDataLen(1024);
+							}
+							else
+							{
+								memcpy(pNewBuffer->m_pBuffer->GetBuffer() + nSendLen, pSendBuffer->m_pBuffer->GetData(), nDataLen);
+								pContext->m_pWaitingSend = pContext->m_pWaitingSend->m_pNext;
+								m_pSocketBufferMgr->ReleaseSocketBuffer(pSendBuffer);
+								nSendLen += nDataLen;
+								pNewBuffer->m_pBuffer->SetDataLen(nSendLen);
+							}
 						}
-						else
+						DWORD dwError = NO_ERROR;
+						if (!PostSend(pContext, pNewBuffer, dwError))
 						{
-							memcpy(pBuffer->m_pBuffer->GetBuffer() + nLen, pTempBuffer->m_pBuffer->GetData(), nDataLen);
-							pContext->m_pWaitingSend = pContext->m_pWaitingSend->m_pNext;
-							nLen += nDataLen;
+							myLogConsoleW("%s PostSendÊ§°Ü£¬¹Ø±ÕÌ×½Ó×Ö%d", __FUNCTION__, pBuffer->m_hSocket);
+							bClose = true;
+							break;
 						}
 					}
-					DWORD dwError = NO_ERROR;
-					PostSend(pContext, pBuffer, dwError);
+					else
+					{
+						myLogConsoleW("%s AllocateSocketBufferÊ§°Ü£¬Ì×½Ó×Ö%d size:1024", __FUNCTION__, pBuffer->m_hSocket);
+						break;
+					}
+				}
+				if (pContext->m_bDelayClose && !pContext->m_pWaitingSend && pContext->m_llPendingSends <= 0)
+				{
+					bClose = true;
 				}
 			}
-#endif
-			if (pContext->m_bDelayClose && !pContext->m_pWaitingSend && pContext->m_llPendingSends <= 0)
+			if (bClose)
 			{
 #if 1
-				CSocketBuffer* pNewBuffer = m_pSocketBufferMgr->AllocateSocketBuffer(1);
-				if (pBuffer)
+				CSocketBuffer * pCloseBuffer = m_pSocketBufferMgr->AllocateSocketBuffer(1);
+				if (pCloseBuffer)
 				{
 					DWORD dwError = NO_ERROR;
-					if (!PostClose(pContext, pNewBuffer, dwError))
+					if (!PostClose(pContext, pCloseBuffer, dwError))
 					{
-						m_pSocketBufferMgr->ReleaseSocketBuffer(pNewBuffer);
+						m_pSocketBufferMgr->ReleaseSocketBuffer(pCloseBuffer);
 					}
 				}
 #else
