@@ -10,7 +10,7 @@ void* CDBServer::OnWorkerStart()
 		return NULL;
 	}
 
-	CWorkerContext* pContext = new CWorkerContext;
+	CWorkerContext* pContext = new CWorkerContext();
 	if (!pContext)
 	{
 		myLogConsoleE("%s ¿ÕÖ¸ÕëÒì³£", __FUNCTION__);
@@ -171,7 +171,7 @@ BOOL CDBServer::OnGetUserInfo(CSocketContext* pContext, NetRequest* pRequest, CW
 
 int main()
 {
-	CDBServer* pDBServer = new CDBServer;
+	CDBServer* pDBServer = new CDBServer();
 	if (!pDBServer || !pDBServer->Initialize("127.0.0.1", 8888, 32, 64, 1, 10000))
 	{
 		myLogConsoleI("db server initialize failed");

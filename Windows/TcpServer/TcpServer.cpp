@@ -19,7 +19,7 @@ int main()
 	}
 #else
 	const std::string strIp = "127.0.0.1";
-	CIocpTcpClient* pClient = new CIocpTcpClient;
+	CIocpTcpClient* pClient = new CIocpTcpClient();
 	pClient->m_nFlag = CPS_FLAG_DEFAULT;
 	if (!pClient->Create())
 	{

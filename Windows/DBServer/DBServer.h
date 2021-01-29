@@ -16,8 +16,8 @@ class CWorkerContext {
 public:
 	CWorkerContext() {
 		m_bReconnect = FALSE;
-		//m_pConnection = new COleDBConnection;
-		m_pConnection = new CDBConnection;
+		//m_pConnection = new COleDBConnection();
+		m_pConnection = new CDBConnection();
 	}
 	virtual ~CWorkerContext() {
 

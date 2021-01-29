@@ -169,7 +169,7 @@ public:
 			}
 			else
 			{
-				pBuffer = new CSocketBuffer;
+				pBuffer = new CSocketBuffer();
 			}
 		}
 		if (pBuffer)
@@ -183,8 +183,11 @@ public:
 			{
 				return nullptr;
 			}
+			return pBuffer;
 		}
-		return pBuffer;
+		else {
+			return nullptr;
+		}
 	}
 	void ReleaseSocketBuffer(CSocketBuffer* pBuffer)
 	{
@@ -497,7 +500,7 @@ public:
 		}
 		else
 		{
-			pContext = new CSocketContext;
+			pContext = new CSocketContext();
 			pContext->m_pCtxManager = this;
 			pContext->m_pBufManager = m_pBufManager;
 			pContext->m_pAllocator = m_pAllocator;
@@ -514,12 +517,13 @@ public:
 				m_mapServer.insert(std::make_pair(nIndex, pContext->m_hSocket));
 			}
 			m_mapConnection.insert(std::make_pair(hSocket, pContext));
+			return pContext;
 		}
 		else
 		{
 			SAFE_RELEASE_SOCKET(hSocket);
+			return nullptr;
 		}
-		return pContext;
 	}
 	void ReleaseSocketContext(CSocketContext* pContext)
 	{
@@ -620,7 +624,7 @@ public:
 
 	bool Init(CDataBufferMgr* pAllocator, CSocketBufferMgr* pBufManager, ULONG nMaxConnections)
 	{
-		m_pListenContext = new CSocketListenContext;
+		m_pListenContext = new CSocketListenContext();
 		if (!m_pListenContext || !m_pListenContext->Init())
 		{
 			myLogConsoleE("%s CSocketContextMgr≥ı ºªØ ß∞‹", __FUNCTION__);

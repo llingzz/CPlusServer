@@ -138,7 +138,7 @@ int main()
 		// ²¶»ñCRTÒì³£
 		DisableSetUnhandledExceptionFilter();
 	}
-	CHttpServer* pHttpServer = new CHttpServer;
+	CHttpServer* pHttpServer = new CHttpServer();
 	if (!pHttpServer || !pHttpServer->Initialize("127.0.0.1", 8080, 32, 64, 4, 20480))
 	{
 		myLogConsoleI("server initialize failed");

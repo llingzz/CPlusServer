@@ -67,20 +67,20 @@ bool CSocketContext::HandleRecvData(CSocketBuffer* pBuffer, DWORD dwTrans, CIocp
 				}
 				if (m_nRecvDataLen >= (pHeader->nDataLen + sizeof(NetPacketHead)))
 				{
-					m_nRecvDataLen -= (pHeader->nDataLen + sizeof(NetPacketHead));
 					IDataBuffer* pHandleData = m_pAllocator->AllocateDataBuffer(pHeader->nDataLen);
 					memcpy(pHandleData->GetBuffer(), (BYTE*)(&m_recvDataBuff) + sizeof(NetPacketHead), pHeader->nDataLen);
 					memmove((BYTE*)&m_recvDataBuff, (BYTE*)(&m_recvDataBuff) + pHeader->nDataLen + sizeof(NetPacketHead), (8192 - pHeader->nDataLen - sizeof(NetPacketHead)));
+					m_nRecvDataLen -= (pHeader->nDataLen + sizeof(NetPacketHead));
 					pServer->OnDataHandle(this, pHandleData);
 				}
 			}
 		}
 		else
 		{
-			m_nRecvDataLen -= dwTrans;
 			IDataBuffer* pHandleData = m_pAllocator->AllocateDataBuffer(dwTrans);
 			memcpy(pHandleData->GetBuffer(), &m_recvDataBuff, dwTrans);
 			memmove((BYTE*)&m_recvDataBuff, (BYTE*)(&m_recvDataBuff) + dwTrans, (8192 - dwTrans));
+			m_nRecvDataLen -= dwTrans;
 			pServer->OnDataHandle(this, pHandleData);
 		}
 		pDataBuffer = m_pWaitingRecv;
@@ -120,19 +120,19 @@ CIocpTcpServer::~CIocpTcpServer()
 
 bool CIocpTcpServer::InitializeMembers(UINT nMaxConnections)
 {
-	m_pAllocator = new CDataBufferMgr;
+	m_pAllocator = new CDataBufferMgr();
 	if (!m_pAllocator)
 	{
 		return false;
 	}
 
-	m_pSocketBufferMgr = new CSocketBufferMgr;
+	m_pSocketBufferMgr = new CSocketBufferMgr();
 	if (!m_pSocketBufferMgr || !m_pSocketBufferMgr->Init(m_pAllocator))
 	{
 		return false;
 	}
 
-	m_pSocketContextMgr = new CSocketContextMgr;
+	m_pSocketContextMgr = new CSocketContextMgr();
 	if (!m_pSocketContextMgr)
 	{
 		return false;
@@ -255,7 +255,7 @@ bool CIocpTcpServer::BeginThreadPool(UINT nThreads/* = 0*/)
 	}
 	for (UINT i = 0; i < nThreads; i++)
 	{
-		CThreadContext* pThreadCtx = new CThreadContext;
+		CThreadContext* pThreadCtx = new CThreadContext();
 		pThreadCtx->m_pContext = OnWorkerStart();
 		pThreadCtx->m_thread = std::thread([&] {this->WorkerThreadFunc(); });
 		std::thread::id tid = pThreadCtx->m_thread.get_id();
@@ -539,6 +539,7 @@ bool CIocpTcpServer::SendData(CSocketContext* pContext, const void* pDataPtr, in
 		DWORD dwError = 0;
 		return PostSend(pContext, pBuffer, dwError);
 	}
+	return FALSE;
 #else
 	bool bRet = false;
 	CSocketBuffer* pBuffer = m_pSocketBufferMgr->AllocateSocketBuffer(nDataLen);
@@ -574,8 +575,8 @@ bool CIocpTcpServer::SendData(CSocketContext* pContext, const void* pDataPtr, in
 			}
 		}
 	}
-#endif
 	return bRet;
+#endif
 }
 
 bool CIocpTcpServer::SendPbData(CSocketContext* pContext, const google::protobuf::Message& pdata)
@@ -1054,73 +1055,49 @@ void CIocpTcpServer::SocketThreadFunc()
 		DWORD dwError = NO_ERROR;
 		LPOVERLAPPED lpOverlapped = NULL;
 		BOOL bRet = ::GetQueuedCompletionStatus(m_hCompletionPort, &dwTrans, (PULONG_PTR)&dwKey, &lpOverlapped, WSA_INFINITE);
-		if (FALSE == bRet)
+
+		if (!lpOverlapped)
 		{
-			if (!lpOverlapped)
+			if (!bRet)
 			{
-				continue;
-			}
-			CSocketContext* pContext = (CSocketContext*)dwKey;
-			if (!pContext)
-			{
-				continue;
-			}
-			else
-			{
-				/*取出对应lpOverlapped的CSocketBuffer进行I/O操作*/
-				pBuffer = CONTAINING_RECORD(lpOverlapped, CSocketBuffer, m_ol);
-				if (!pBuffer)
+				dwError = ::WSAGetLastError();
+				if (ERROR_ABANDONED_WAIT_0 == dwError)
 				{
-					continue;
-				}
-				SOCKET socket = pBuffer->m_hSocket;
-				if (INVALID_SOCKET == socket)
-				{
-					myLogConsoleE("%s INVALID_SOCKET == socket", __FUNCTION__);
+					myLogConsoleE("%s ERROR_ABANDONED_WAIT_0 %d", __FUNCTION__, ::GetCurrentThreadId());
 					break;
 				}
-				/*查询该套接口上一个重叠操作失败的原因*/
-				DWORD dwFlags = 0;
-				DWORD cbTransfer = 0;
-				BOOL bResult = ::WSAGetOverlappedResult(socket, &(pBuffer->m_ol), &cbTransfer, FALSE, &dwFlags);
-				if (!bResult)
-				{
-					dwError = ::WSAGetLastError();
-					myLogConsoleW("%s WSAGetOverlappedResult返回失败，错误码：%d", __FUNCTION__, dwError);
-				}
-				/*检查该套接字上的错误*/
-				if (NO_ERROR != dwError)
-				{
-					CloseClient(pBuffer->m_hSocket);
-					m_pSocketBufferMgr->ReleaseSocketBuffer(pBuffer);
-					myLogConsoleW("%s 套接字%d发生错误", __FUNCTION__, pContext->m_hSocket);
-				}
 			}
+			continue;
 		}
-		else
+		/*取出对应lpOverlapped的CSocketBuffer进行I/O操作*/
+		pBuffer = CONTAINING_RECORD(lpOverlapped, CSocketBuffer, m_ol);
+		if (!pBuffer)
 		{
-			if (!lpOverlapped)
+			continue;
+		}
+		if (!bRet)
+		{
+			/*查询该套接口上一个重叠操作失败的原因*/
+			DWORD dwFlags = 0;
+			DWORD cbTransfer = 0;
+			BOOL bResult = ::WSAGetOverlappedResult(pBuffer->m_hSocket, &(pBuffer->m_ol), &cbTransfer, FALSE, &dwFlags);
+			if (!bResult)
 			{
-				myLogConsoleW("%s 工作线程%d退出...lpOverlapped is nullptr", __FUNCTION__, ::GetCurrentThreadId());
-				return;
+				dwError = ::WSAGetLastError();
+				myLogConsoleW("%s WSAGetOverlappedResult返回失败，错误码：%d", __FUNCTION__, dwError);
 			}
-			/*取出对应lpOverlapped的CSocketBuffer进行I/O操作*/
-			pBuffer = CONTAINING_RECORD(lpOverlapped, CSocketBuffer, m_ol);
-			if (!pBuffer)
+			/*检查该套接字上的错误*/
+			if (NO_ERROR != dwError)
 			{
-				continue;
-			}
-			if (0 == dwKey && IoType::enIoAccept != pBuffer->m_ioType)
-			{
-				myLogConsoleW("%s 工作线程%d退出...0 == dwTrans && 0 == dwKey && enIoAccept != pBuffer->m_ioType", __FUNCTION__, GetCurrentThreadId());
-				return;
+				CloseClient(pBuffer->m_hSocket);
+				myLogConsoleW("%s 套接字%d发生错误 %d", __FUNCTION__, pBuffer->m_hSocket, dwError);
 			}
 		}
 
 		/*处理I/O操作*/
 		HandleIo(dwKey, pBuffer, dwTrans, dwError);
 	}
-	myLogConsoleI("%s 工作线程%d退出...", __FUNCTION__, ::GetCurrentThreadId());
+	myLogConsoleE("%s 工作线程%d退出...", __FUNCTION__, ::GetCurrentThreadId());
 	return;
 }
 
@@ -1179,7 +1156,7 @@ bool CIocpTcpClient::Create()
 
 bool CIocpTcpClient::BeginThreadPool(UINT nThreads/* = 0*/)
 {
-	CThreadContext* pThreadCtx = new CThreadContext;
+	CThreadContext* pThreadCtx = new CThreadContext();
 	pThreadCtx->m_pContext = OnWorkerStart();
 	pThreadCtx->m_thread = std::thread([&] {this->WorkerThreadFunc(); });
 	std::thread::id tid = pThreadCtx->m_thread.get_id();
